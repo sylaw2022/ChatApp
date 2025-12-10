@@ -433,6 +433,14 @@ function ChatDashboard({ token, myId, myUsername }) {
     const eventSource = new EventSource(`${API_URL}/api/events?token=${encodeURIComponent(token)}`);
 
     eventSourceRef.current = eventSource;
+    
+    eventSource.onopen = () => {
+      console.log('✅ SSE connection opened');
+    };
+    
+    eventSource.onerror = (err) => {
+      console.error('❌ SSE connection error:', err);
+    };
 
     // Handle incoming messages
     eventSource.onmessage = (event) => {
