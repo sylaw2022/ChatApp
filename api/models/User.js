@@ -31,7 +31,9 @@ const User = {
     // Find by ID
     findById: (id) => {
         const stmt = db.prepare('SELECT * FROM users WHERE id = ?');
-        return stmt.get(id);
+        // Convert to integer if it's a string
+        const idInt = typeof id === 'string' ? parseInt(id) : id;
+        return stmt.get(idInt);
     },
 
     // Find by username
