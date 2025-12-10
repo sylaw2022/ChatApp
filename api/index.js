@@ -133,9 +133,13 @@ const sendEvent = (uid, type, data) => {
     
     if (target) {
         try {
-            // If data is an object with 'message' and 'data' keys, use it as-is
-            // Otherwise, wrap it in the standard format
-            const eventPayload = data.message ? data : { type, data, message: data };
+            // Always include type, and ensure message is accessible via both 'message' and 'data' keys
+            const eventPayload = {
+                type,
+                ...data,  // Spread the data object (which may contain 'message' and 'data' keys)
+                message: data.message || data.data || data,  // Ensure 'message' key exists
+                data: data.data || data.message || data      // Ensure 'data' key exists
+            };
             target.write(`data: ${JSON.stringify(eventPayload)}\n\n`);
             console.log(`✅ Sent ${type} event to user ${uidStr}`);
             if (type === 'receive_message') {
