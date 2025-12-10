@@ -458,7 +458,7 @@ function ChatDashboard({ token, myId, myUsername }) {
           setCallerSignal(data.signal);
           setCallStatus(`${data.name} is calling...`);
         } else if (data.type === 'call_accepted') {
-          setCallStatus('Call Connected');
+          setCallStatus('Call in progress');
           if (connectionRef.current) {
             connectionRef.current.setRemoteDescription(new RTCSessionDescription(data.signal));
           }
@@ -513,7 +513,7 @@ function ChatDashboard({ token, myId, myUsername }) {
             setCallerSignal(signal.data.signal);
             setCallStatus(`${signal.data.name} is calling...`);
           } else if (signal.type === 'call_accepted') {
-            setCallStatus('Call Connected');
+            setCallStatus('Call in progress');
             if (connectionRef.current) {
               connectionRef.current.setRemoteDescription(new RTCSessionDescription(signal.data));
             }
@@ -774,7 +774,7 @@ function ChatDashboard({ token, myId, myUsername }) {
     setIsVideoCall(videoCall);
     setCallActive(true);
     setReceivingCall(false);
-    setCallStatus('Call Connected');
+    setCallStatus('Call in progress');
 
     navigator.mediaDevices.getUserMedia({ video: videoCall, audio: true }).then((stream) => {
       setLocalStream(stream);
@@ -802,6 +802,15 @@ function ChatDashboard({ token, myId, myUsername }) {
           userVideo.current.srcObject = event.streams[0];
         } else if (!videoCall && userVideo.current) {
           userVideo.current.srcObject = event.streams[0];
+        }
+        // Update status when media is received
+        setCallStatus('Call in progress');
+      };
+      
+      // Update status when connection is established
+      peer.onconnectionstatechange = () => {
+        if (peer.connectionState === 'connected') {
+          setCallStatus('Call in progress');
         }
       };
 
