@@ -414,24 +414,57 @@ app.post('/api/message', async (req, res) => {
             return res.status(500).json({ error: 'Database not initialized' });
         }
         const { token, recipientId, groupId, content, type, fileUrl } = req.body;
-        const senderId = jwt.verify(token, JWT_SECRET).id;
-        const msg = await Message.create({ sender: senderId, recipient: recipientId, groupId, content, type, fileUrl });
+        
+        if (!token) {
+            return res.status(401).json({ error: 'Token required' });
+        }
+        
+        if (!content && !fileUrl) {
+            return res.status(400).json({ error: 'Message content or file required' });
+        }
+        
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const senderId = decoded.id;
+        const senderIdInt = typeof senderId === 'string' ? parseInt(senderId) : senderId;
+        const recipientIdInt = recipientId ? (typeof recipientId === 'string' ? parseInt(recipientId) : recipientId) : null;
+        const groupIdInt = groupId ? (typeof groupId === 'string' ? parseInt(groupId) : groupId) : null;
+        
+        if (!groupIdInt && !recipientIdInt) {
+            return res.status(400).json({ error: 'Either recipientId or groupId is required' });
+        }
+        
+        const msg = await Message.create({ 
+            sender: senderIdInt, 
+            recipient: recipientIdInt, 
+            groupId: groupIdInt, 
+            content: content || '', 
+            type: type || 'text', 
+            fileUrl: fileUrl || '' 
+        });
 
-        if(groupId) {
-            const g = await Group.findById(groupId);
+        if (!msg) {
+            return res.status(500).json({ error: 'Failed to create message' });
+        }
+
+        if(groupIdInt) {
+            const g = await Group.findById(groupIdInt);
             if (g && g.members) {
                 g.members.forEach(m => {
-                    const memberId = m.id || m;
-                    sendEvent(memberId, 'receive_message', msg);
+                    const memberId = typeof m === 'object' ? (m.id || m._id) : m;
+                    const memberIdInt = typeof memberId === 'string' ? parseInt(memberId) : memberId;
+                    sendEvent(memberIdInt, 'receive_message', msg);
                 });
             }
-        } else {
-            sendEvent(recipientId, 'receive_message', msg);
-            sendEvent(senderId, 'receive_message', msg);
+        } else if (recipientIdInt) {
+            sendEvent(recipientIdInt, 'receive_message', msg);
+            sendEvent(senderIdInt, 'receive_message', msg);
         }
         res.json({success:true, message: msg});
     } catch (e) {
         console.error('Send message error:', e);
+        if (e.name === 'JsonWebTokenError' || e.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
         res.status(500).json({ error: e.message || 'Failed to send message' });
     }
 });

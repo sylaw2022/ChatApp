@@ -593,28 +593,67 @@ function ChatDashboard({ token, myId, myUsername }) {
 
   // --- MESSAGE LOGIC ---
   const currentMessages = selectedGroup 
-    ? messages.filter(msg => msg.groupId === (selectedGroup._id || selectedGroup.id))
-    : messages.filter(msg => 
-        (selectedUser && (msg.sender === (selectedUser._id || selectedUser.id) || msg.sender?._id === (selectedUser._id || selectedUser.id)) && msg.recipient === myId) ||
-        (selectedUser && (msg.sender === myId || msg.sender?._id === myId) && msg.recipient === (selectedUser._id || selectedUser.id))
-      );
+    ? messages.filter(msg => {
+        const msgGroupId = msg.groupId || msg.group_id;
+        const groupId = selectedGroup._id || selectedGroup.id;
+        return String(msgGroupId) === String(groupId);
+      })
+    : selectedUser ? messages.filter(msg => {
+        const msgSenderId = msg.sender?._id || msg.sender?.id || msg.sender;
+        const msgRecipientId = msg.recipient || msg.recipient_id;
+        const userId = selectedUser._id || selectedUser.id;
+        const myIdStr = String(myId);
+        const userIdStr = String(userId);
+        const senderIdStr = String(msgSenderId);
+        const recipientIdStr = String(msgRecipientId);
+        
+        // Message is between current user and selected user
+        return (
+          (senderIdStr === myIdStr && recipientIdStr === userIdStr) ||
+          (senderIdStr === userIdStr && recipientIdStr === myIdStr)
+        );
+      }) : [];
 
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!input.trim() || (!selectedUser && !selectedGroup)) return;
     
+    const messageContent = input.trim();
+    setInput(''); // Clear input immediately for better UX
+    
+    // Optimistically add message to local state
+    const tempMessage = {
+      _id: `temp-${Date.now()}`,
+      id: `temp-${Date.now()}`,
+      sender: { _id: myId, id: myId, username: myUsername },
+      recipient: selectedUser ? (selectedUser._id || selectedUser.id) : null,
+      groupId: selectedGroup ? (selectedGroup._id || selectedGroup.id) : null,
+      content: messageContent,
+      type: 'text',
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, tempMessage]);
+    
     try {
-      await axios.post(`${API_URL}/api/message`, {
+      const response = await axios.post(`${API_URL}/api/message`, {
         token,
         recipientId: selectedUser ? (selectedUser._id || selectedUser.id) : null,
         groupId: selectedGroup ? (selectedGroup._id || selectedGroup.id) : null,
-        content: input,
+        content: messageContent,
         type: 'text'
       });
-      setInput('');
-      // Message will be received via SSE
+      
+      // Replace temp message with real message from server
+      if (response.data?.message) {
+        setMessages(prev => {
+          const filtered = prev.filter(m => m._id !== tempMessage._id && m.id !== tempMessage.id);
+          return [...filtered, response.data.message];
+        });
+      }
     } catch (err) {
       console.error('Failed to send message:', err);
+      // Remove temp message on error
+      setMessages(prev => prev.filter(m => m._id !== tempMessage._id && m.id !== tempMessage.id));
       const errorMsg = err.response?.data?.error || err.message || 'Failed to send message';
       alert(errorMsg);
     }
