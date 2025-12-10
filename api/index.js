@@ -133,8 +133,15 @@ const sendEvent = (uid, type, data) => {
     
     if (target) {
         try {
-            target.write(`data: ${JSON.stringify({type, data})}\n\n`);
+            // If data is an object with 'message' and 'data' keys, use it as-is
+            // Otherwise, wrap it in the standard format
+            const eventPayload = data.message ? data : { type, data, message: data };
+            target.write(`data: ${JSON.stringify(eventPayload)}\n\n`);
             console.log(`✅ Sent ${type} event to user ${uidStr}`);
+            if (type === 'receive_message') {
+                const msgId = data.message?.id || data.message?._id || data.data?.id || data.data?._id || data.id || data._id;
+                console.log(`   Message ID: ${msgId}`);
+            }
         } catch (err) {
             console.error(`❌ Failed to send event to user ${uidStr}:`, err);
             // Remove dead connection
@@ -143,6 +150,7 @@ const sendEvent = (uid, type, data) => {
         }
     } else {
         console.log(`⚠️ No SSE connection found for user ${uidStr} (type: ${type})`);
+        console.log(`   Available clients:`, Object.keys(clients));
     }
 };
 
