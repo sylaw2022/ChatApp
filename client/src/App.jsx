@@ -147,6 +147,15 @@ function App() {
 
   if (!token) return <Auth setToken={setToken} setUser={setUser} />;
   
+  // Show loading if user data is not yet available
+  if (!user) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: THEME.bgApp }}>
+        <div>Loading...</div>
+      </div>
+    );
+  }
+  
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <GlobalStyles />
