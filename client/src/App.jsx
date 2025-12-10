@@ -85,8 +85,47 @@ function App() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'Arial, sans-serif' }}>
       {/* Header */}
       <div style={{ background: '#333', color: '#fff', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0 }}>Chat App {user?.role === 'admin' && <span style={{fontSize:'0.6em', background:'red', padding:'2px 5px', borderRadius:'4px', verticalAlign:'middle'}}>ADMIN</span>}</h2>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          {/* Avatar Icon - Clickable to open profile */}
+          <div 
+            onClick={() => setView('profile')}
+            style={{ 
+              cursor: 'pointer', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '10px',
+              padding: '5px 10px',
+              borderRadius: '5px',
+              background: view === 'profile' ? '#555' : 'transparent',
+              transition: 'background 0.2s'
+            }}
+          >
+            <img 
+              src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.username || 'User')}&background=007bff&color=fff&size=40`}
+              alt={user?.username}
+              style={{ 
+                width: '40px', 
+                height: '40px', 
+                borderRadius: '50%', 
+                objectFit: 'cover',
+                background: '#555',
+                border: '2px solid #fff'
+              }}
+              onError={(e) => {
+                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.username || 'User')}&background=007bff&color=fff&size=40`;
+              }}
+            />
+            <div>
+              <div style={{ fontWeight: 'bold', fontSize: '0.95em' }}>
+                {user?.nickname || user?.username}
+              </div>
+              {user?.role === 'admin' && (
+                <span style={{fontSize:'0.7em', background:'red', padding:'2px 5px', borderRadius:'3px', verticalAlign:'middle'}}>ADMIN</span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <button 
                 onClick={() => setView('chat')}
                 style={{ background: view === 'chat' ? '#555' : '#007bff', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}
