@@ -999,13 +999,82 @@ function ChatDashboard({ token, myId, myUsername }) {
         
         {/* Call Banner */}
         {(callActive || receivingCall) && (
-          <div style={{ background: '#333', color: '#fff', padding: '10px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:'0 2px 5px rgba(0,0,0,0.2)' }}>
-            <span style={{ fontWeight: 'bold' }}>📞 {callStatus}</span>
-            <div>
+          <div style={{ 
+            background: isVideoCall ? '#28a745' : '#007bff', 
+            color: '#fff', 
+            padding: '15px 20px', 
+            display:'flex', 
+            justifyContent:'space-between', 
+            alignItems:'center', 
+            boxShadow:'0 2px 5px rgba(0,0,0,0.2)',
+            zIndex: 1001,
+            position: 'relative'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '1.5em' }}>{isVideoCall ? '📹' : '📞'}</span>
+              <span style={{ fontWeight: 'bold', fontSize: '1.1em' }}>{callStatus}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
               {receivingCall && !callActive && (
-                <button onClick={answerCall} style={{ background: '#28a745', color:'white', border:'none', padding:'8px 16px', borderRadius:'4px', marginRight: '10px', cursor:'pointer' }}>Answer</button>
+                <>
+                  <button 
+                    onClick={answerCall} 
+                    style={{ 
+                      background: '#28a745', 
+                      color:'white', 
+                      border:'none', 
+                      padding:'10px 20px', 
+                      borderRadius:'6px', 
+                      cursor:'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '0.95em',
+                      transition: 'background 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#218838'}
+                    onMouseLeave={(e) => e.target.style.background = '#28a745'}
+                  >
+                    ✓ Answer
+                  </button>
+                  <button 
+                    onClick={leaveCall} 
+                    style={{ 
+                      background: '#dc3545', 
+                      color:'white', 
+                      border:'none', 
+                      padding:'10px 20px', 
+                      borderRadius:'6px', 
+                      cursor:'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '0.95em',
+                      transition: 'background 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#c82333'}
+                    onMouseLeave={(e) => e.target.style.background = '#dc3545'}
+                  >
+                    ✕ Decline
+                  </button>
+                </>
               )}
-              <button onClick={leaveCall} style={{ background: '#dc3545', color:'white', border:'none', padding:'8px 16px', borderRadius:'4px', cursor:'pointer' }}>End Call</button>
+              {callActive && (
+                <button 
+                  onClick={leaveCall} 
+                  style={{ 
+                    background: '#dc3545', 
+                    color:'white', 
+                    border:'none', 
+                    padding:'10px 20px', 
+                    borderRadius:'6px', 
+                    cursor:'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '0.95em',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.background = '#c82333'}
+                  onMouseLeave={(e) => e.target.style.background = '#dc3545'}
+                >
+                  ✕ End Call
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1014,11 +1083,52 @@ function ChatDashboard({ token, myId, myUsername }) {
           <>
             {/* Chat Header */}
             <div style={{ padding: '15px 20px', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#fff' }}>
-                <h3 style={{ margin: 0 }}>{selectedUser.username}</h3>
+                <h3 style={{ margin: 0 }}>{(selectedUser?.nickname || selectedUser?.username) || selectedGroup?.name}</h3>
                 {!callActive && !receivingCall && selectedUser && (
-                  <button onClick={callUser} style={{ background: 'transparent', border:'1px solid #007bff', color:'#007bff', padding:'6px 12px', borderRadius:'20px', cursor:'pointer', display:'flex', alignItems:'center', gap:'5px' }}>
-                     📞 Call
-                  </button>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <button 
+                      onClick={() => callUser(false)} 
+                      style={{ 
+                        background: 'transparent', 
+                        border:'1px solid #007bff', 
+                        color:'#007bff', 
+                        padding:'8px 16px', 
+                        borderRadius:'20px', 
+                        cursor:'pointer', 
+                        display:'flex', 
+                        alignItems:'center', 
+                        gap:'8px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.target.style.background = '#007bff'}
+                      onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                    >
+                      <span style={{ fontSize: '1.2em' }}>📞</span>
+                      <span>Audio</span>
+                    </button>
+                    <button 
+                      onClick={() => callUser(true)} 
+                      style={{ 
+                        background: 'transparent', 
+                        border:'1px solid #28a745', 
+                        color:'#28a745', 
+                        padding:'8px 16px', 
+                        borderRadius:'20px', 
+                        cursor:'pointer', 
+                        display:'flex', 
+                        alignItems:'center', 
+                        gap:'8px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.target.style.background = '#28a745'}
+                      onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                    >
+                      <span style={{ fontSize: '1.2em' }}>📹</span>
+                      <span>Video</span>
+                    </button>
+                  </div>
                 )}
             </div>
             
