@@ -157,11 +157,26 @@ app.put('/api/profile', async (req, res) => {
             return res.status(500).json({ error: 'Database not initialized' });
         }
         const { token, nickname, isVisible } = req.body;
-        const uid = jwt.verify(token, JWT_SECRET).id;
-        const user = User.findByIdAndUpdate(uid, { nickname, isVisible });
+        if (!token) {
+            return res.status(401).json({ error: 'Token required' });
+        }
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const uid = decoded.id;
+        
+        const updateData = {};
+        if (nickname !== undefined) updateData.nickname = nickname;
+        if (isVisible !== undefined) updateData.isVisible = isVisible;
+        
+        const user = User.findByIdAndUpdate(uid, updateData);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
         res.json(user);
     } catch (e) {
         console.error('Profile update error:', e);
+        if (e.name === 'JsonWebTokenError' || e.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
         res.status(500).json({ error: e.message || 'Profile update failed' });
     }
 });

@@ -118,7 +118,9 @@ const User = {
             stmt.run(...params);
         }
 
-        return User.findById(id);
+        // Return the updated user
+        const updatedUser = User.findById(id);
+        return updatedUser || null;
     },
 
     // Delete by ID
