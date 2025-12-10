@@ -742,6 +742,15 @@ function ChatDashboard({ token, myId, myUsername }) {
           // For audio-only, use audio element
           userVideo.current.srcObject = event.streams[0];
         }
+        // Update status when media is received
+        setCallStatus('Call in progress');
+      };
+      
+      // Update status when connection is established
+      peer.onconnectionstatechange = () => {
+        if (peer.connectionState === 'connected') {
+          setCallStatus('Call in progress');
+        }
       };
 
       connectionRef.current = peer;
