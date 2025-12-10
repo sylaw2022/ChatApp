@@ -249,13 +249,78 @@ function AdminDashboard({ token }) {
     );
 }
 
+// --- PROFILE VIEW ---
+function ProfileView({ token, user, setUser }) {
+  const [nickname, setNickname] = useState(user?.nickname || '');
+  const [isVisible, setIsVisible] = useState(user?.isVisible !== false);
+  const [avatarFile, setAvatarFile] = useState(null);
+
+  const handleSave = async () => {
+    try {
+      const { data } = await axios.put(`${API_URL}/api/profile`, { token, nickname, isVisible });
+      localStorage.setItem('nickname', data.nickname || '');
+      if (avatarFile) {
+        const fd = new FormData();
+        fd.append('file', avatarFile);
+        fd.append('token', token);
+        const res = await axios.post(`${API_URL}/api/profile/avatar`, fd);
+        localStorage.setItem('avatar', res.data.fileUrl);
+        data.avatar = res.data.fileUrl;
+      }
+      setUser(prev => ({ ...prev, ...data }));
+      alert('Profile saved!');
+    } catch (e) {
+      const errorMsg = e.response?.data?.error || e.message || 'Failed to save profile';
+      alert(errorMsg);
+    }
+  };
+
+  return (
+    <div style={{ padding: '40px', maxWidth: '500px', margin: '40px auto', background: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+      <h2>Your Profile</h2>
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '20px', alignItems: 'center' }}>
+        <img 
+          src={avatarFile ? URL.createObjectURL(avatarFile) : (user?.avatar || '')} 
+          alt="Avatar" 
+          style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', background: '#ddd' }}
+        />
+        <div>
+          <input type="file" id="avatar-upload" hidden onChange={e => setAvatarFile(e.target.files[0])} />
+          <button onClick={() => document.getElementById('avatar-upload').click()} style={{ padding: '8px 15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
+            Upload Photo
+          </button>
+        </div>
+      </div>
+      <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Display Name</label>
+      <input 
+        value={nickname} 
+        onChange={e => setNickname(e.target.value)} 
+        style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ddd', marginBottom: '20px' }}
+        placeholder="Enter your display name"
+      />
+      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '30px' }}>
+        <input type="checkbox" checked={isVisible} onChange={e => setIsVisible(e.target.checked)} />
+        Public Profile (visible to others)
+      </label>
+      <button onClick={handleSave} style={{ padding: '10px 20px', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+        Save Changes
+      </button>
+    </div>
+  );
+}
+
 // --- CHAT DASHBOARD (Messaging, Calls, File Share) ---
 function ChatDashboard({ token, myId, myUsername }) {
   // Chat State
   const [users, setUsers] = useState([]);
+  const [friends, setFriends] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedGroup, setSelectedGroup] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+  const [activeTab, setActiveTab] = useState('friends'); // 'friends', 'communities', 'all'
   const eventSourceRef = useRef(null);
 
   // Call State
@@ -400,6 +465,23 @@ function ChatDashboard({ token, myId, myUsername }) {
     axios.get(`${API_URL}/api/users`)
       .then(res => setUsers(res.data.filter(u => (u._id || u.id) !== myId)))
       .catch(err => console.error('Failed to fetch users:', err));
+    
+    // Fetch friends and requests
+    axios.get(`${API_URL}/api/my-network`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => {
+        setFriends(res.data.friends || []);
+        setRequests(res.data.requests || []);
+      })
+      .catch(err => console.error('Failed to fetch network:', err));
+    
+    // Fetch groups
+    axios.get(`${API_URL}/api/groups`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => setGroups(res.data || []))
+      .catch(err => console.error('Failed to fetch groups:', err));
   }, [myId, token]);
 
   useEffect(() => {
@@ -407,8 +489,14 @@ function ChatDashboard({ token, myId, myUsername }) {
       axios.get(`${API_URL}/api/messages/${myId}/${selectedUser._id || selectedUser.id}`)
         .then(res => setMessages(res.data || []))
         .catch(err => console.error('Failed to fetch messages:', err));
+    } else if (selectedGroup) {
+      axios.get(`${API_URL}/api/groups/${selectedGroup._id || selectedGroup.id}/messages`)
+        .then(res => setMessages(res.data || []))
+        .catch(err => console.error('Failed to fetch group messages:', err));
+    } else {
+      setMessages([]);
     }
-  }, [selectedUser, myId]);
+  }, [selectedUser, selectedGroup, myId]);
 
   // Auto scroll to bottom of chat
   useEffect(() => {
@@ -416,29 +504,31 @@ function ChatDashboard({ token, myId, myUsername }) {
   }, [messages, selectedUser]);
 
   // --- MESSAGE LOGIC ---
-  const currentMessages = messages.filter(msg => 
-    (selectedUser && msg.sender === selectedUser._id && msg.recipient === myId) ||
-    (selectedUser && msg.sender === myId && msg.recipient === selectedUser._id)
-  );
+  const currentMessages = selectedGroup 
+    ? messages.filter(msg => msg.groupId === (selectedGroup._id || selectedGroup.id))
+    : messages.filter(msg => 
+        (selectedUser && (msg.sender === (selectedUser._id || selectedUser.id) || msg.sender?._id === (selectedUser._id || selectedUser.id)) && msg.recipient === myId) ||
+        (selectedUser && (msg.sender === myId || msg.sender?._id === myId) && msg.recipient === (selectedUser._id || selectedUser.id))
+      );
 
   const sendMessage = async (e) => {
     e.preventDefault();
-    if (input.trim() && selectedUser) {
-      try {
-        const response = await axios.post(`${API_URL}/api/message`, {
-          token,
-          recipientId: selectedUser._id || selectedUser.id,
-          content: input,
-          type: 'text'
-        });
-        setInput('');
-        // Message will be received via SSE, but we can also add it optimistically
-        // The SSE handler will add it to the messages array
-      } catch (err) {
-        console.error('Failed to send message:', err);
-        const errorMsg = err.response?.data?.error || err.message || 'Failed to send message';
-        alert(errorMsg);
-      }
+    if (!input.trim() || (!selectedUser && !selectedGroup)) return;
+    
+    try {
+      await axios.post(`${API_URL}/api/message`, {
+        token,
+        recipientId: selectedUser ? (selectedUser._id || selectedUser.id) : null,
+        groupId: selectedGroup ? (selectedGroup._id || selectedGroup.id) : null,
+        content: input,
+        type: 'text'
+      });
+      setInput('');
+      // Message will be received via SSE
+    } catch (err) {
+      console.error('Failed to send message:', err);
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to send message';
+      alert(errorMsg);
     }
   };
 
@@ -594,23 +684,137 @@ function ChatDashboard({ token, myId, myUsername }) {
 
       {/* Sidebar (User List) */}
       <div style={{ width: '260px', borderRight: '1px solid #ddd', background:'#f8f9fa', display:'flex', flexDirection:'column' }}>
-        <h3 style={{ padding: '20px', margin: 0, borderBottom: '1px solid #ddd' }}>Contacts</h3>
+        {/* Tabs */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #ddd' }}>
+          <button 
+            onClick={() => { setActiveTab('friends'); setSelectedUser(null); setSelectedGroup(null); }}
+            style={{ 
+              flex: 1, padding: '10px', border: 'none', background: activeTab === 'friends' ? '#007bff' : 'transparent',
+              color: activeTab === 'friends' ? 'white' : '#333', cursor: 'pointer', fontWeight: 'bold'
+            }}
+          >
+            Friends
+          </button>
+          <button 
+            onClick={() => { setActiveTab('communities'); setSelectedUser(null); setSelectedGroup(null); }}
+            style={{ 
+              flex: 1, padding: '10px', border: 'none', background: activeTab === 'communities' ? '#007bff' : 'transparent',
+              color: activeTab === 'communities' ? 'white' : '#333', cursor: 'pointer', fontWeight: 'bold'
+            }}
+          >
+            Groups
+          </button>
+          <button 
+            onClick={() => { setActiveTab('all'); setSelectedUser(null); setSelectedGroup(null); }}
+            style={{ 
+              flex: 1, padding: '10px', border: 'none', background: activeTab === 'all' ? '#007bff' : 'transparent',
+              color: activeTab === 'all' ? 'white' : '#333', cursor: 'pointer', fontWeight: 'bold'
+            }}
+          >
+            All
+          </button>
+        </div>
+        
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {users.map(u => (
+          {/* Friend Requests */}
+          {activeTab === 'friends' && requests.length > 0 && (
+            <div style={{ padding: '10px', background: '#fff3cd', borderBottom: '1px solid #ddd' }}>
+              <div style={{ fontSize: '0.85em', fontWeight: 'bold', marginBottom: '5px' }}>Friend Requests ({requests.length})</div>
+              {requests.map(req => (
+                <div key={req._id || req.id} style={{ padding: '5px', fontSize: '0.9em' }}>
+                  {req.username || req.nickname}
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      axios.post(`${API_URL}/api/friends/accept`, { token, fromUserId: req._id || req.id })
+                        .then(() => {
+                          setRequests(requests.filter(r => (r._id || r.id) !== (req._id || req.id)));
+                          setFriends([...friends, req]);
+                        })
+                        .catch(err => alert('Failed to accept request'));
+                    }}
+                    style={{ marginLeft: '5px', padding: '2px 8px', fontSize: '0.8em', background: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                  >
+                    Accept
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Friends List */}
+          {activeTab === 'friends' && friends.map(f => (
             <div 
-              key={u._id} 
-              onClick={() => setSelectedUser(u)}
+              key={f._id || f.id} 
+              onClick={() => { setSelectedUser(f); setSelectedGroup(null); }}
               style={{ 
                 padding: '15px 20px', 
                 cursor: 'pointer',
-                background: selectedUser?._id === u._id ? '#e9ecef' : 'transparent',
+                background: selectedUser?._id === (f._id || f.id) ? '#e9ecef' : 'transparent',
                 borderBottom: '1px solid #eee',
-                fontWeight: selectedUser?._id === u._id ? 'bold' : 'normal'
+                fontWeight: selectedUser?._id === (f._id || f.id) ? 'bold' : 'normal'
+              }}
+            >
+              {f.nickname || f.username}
+            </div>
+          ))}
+          
+          {/* Groups/Communities */}
+          {activeTab === 'communities' && groups.map(g => (
+            <div 
+              key={g._id || g.id} 
+              onClick={() => { setSelectedGroup(g); setSelectedUser(null); }}
+              style={{ 
+                padding: '15px 20px', 
+                cursor: 'pointer',
+                background: selectedGroup?._id === (g._id || g.id) ? '#e9ecef' : 'transparent',
+                borderBottom: '1px solid #eee',
+                fontWeight: selectedGroup?._id === (g._id || g.id) ? 'bold' : 'normal'
+              }}
+            >
+              👥 {g.name}
+            </div>
+          ))}
+          
+          {/* All Users */}
+          {activeTab === 'all' && users.map(u => (
+            <div 
+              key={u._id || u.id} 
+              onClick={() => { setSelectedUser(u); setSelectedGroup(null); }}
+              style={{ 
+                padding: '15px 20px', 
+                cursor: 'pointer',
+                background: selectedUser?._id === (u._id || u.id) ? '#e9ecef' : 'transparent',
+                borderBottom: '1px solid #eee',
+                fontWeight: selectedUser?._id === (u._id || u.id) ? 'bold' : 'normal'
               }}
             >
               {u.username}
+              {!friends.some(f => (f._id || f.id) === (u._id || u.id)) && (
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    axios.post(`${API_URL}/api/friends/request`, { token, toUserId: u._id || u.id })
+                      .then(() => alert('Friend request sent!'))
+                      .catch(err => alert('Failed to send request'));
+                  }}
+                  style={{ marginLeft: '10px', padding: '2px 8px', fontSize: '0.8em', background: '#007bff', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                >
+                  Add
+                </button>
+              )}
             </div>
           ))}
+          
+          {activeTab === 'friends' && friends.length === 0 && requests.length === 0 && (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>No friends yet</div>
+          )}
+          {activeTab === 'communities' && groups.length === 0 && (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>No groups yet</div>
+          )}
+          {activeTab === 'all' && users.length === 0 && (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>No users found</div>
+          )}
         </div>
       </div>
 
@@ -635,7 +839,7 @@ function ChatDashboard({ token, myId, myUsername }) {
             {/* Chat Header */}
             <div style={{ padding: '15px 20px', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#fff' }}>
                 <h3 style={{ margin: 0 }}>{selectedUser.username}</h3>
-                {!callActive && !receivingCall && (
+                {!callActive && !receivingCall && selectedUser && (
                   <button onClick={callUser} style={{ background: 'transparent', border:'1px solid #007bff', color:'#007bff', padding:'6px 12px', borderRadius:'20px', cursor:'pointer', display:'flex', alignItems:'center', gap:'5px' }}>
                      📞 Call
                   </button>
