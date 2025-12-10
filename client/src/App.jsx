@@ -178,7 +178,7 @@ function AdminDashboard({ token }) {
 
     useEffect(() => {
         setLoading(true);
-        axios.get(`${API_URL}/admin/users`, {
+        axios.get(`${API_URL}/api/admin/users`, {
             headers: { Authorization: `Bearer ${token}` }
         })
         .then(res => setUsers(res.data))
@@ -189,7 +189,7 @@ function AdminDashboard({ token }) {
     const deleteUser = async (id) => {
         if(!window.confirm("Are you sure? This will delete the user and their messages.")) return;
         try {
-            await axios.delete(`${API_URL}/admin/users/${id}`, {
+            await axios.delete(`${API_URL}/api/admin/users/${id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setUsers(users.filter(u => u._id !== id));
@@ -294,7 +294,7 @@ function ChatDashboard({ token, myId, myUsername }) {
 
     // Connect to SSE endpoint with token as query parameter
     // (EventSource doesn't support custom headers, so we'll use query param)
-    const eventSource = new EventSource(`${API_URL}/events?token=${encodeURIComponent(token)}`);
+    const eventSource = new EventSource(`${API_URL}/api/events?token=${encodeURIComponent(token)}`);
 
     eventSourceRef.current = eventSource;
 
@@ -354,7 +354,7 @@ function ChatDashboard({ token, myId, myUsername }) {
 
     const pollCalls = async () => {
       try {
-        const response = await axios.get(`${API_URL}/calls/poll`, {
+        const response = await axios.get(`${API_URL}/api/calls/poll`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -395,12 +395,18 @@ function ChatDashboard({ token, myId, myUsername }) {
 
   // --- DATA FETCHING ---
   useEffect(() => {
-    axios.get(`${API_URL}/users`).then(res => setUsers(res.data.filter(u => u._id !== myId)));
-  }, [myId]);
+    if (!token || !myId) return;
+    // Fetch all users
+    axios.get(`${API_URL}/api/users`)
+      .then(res => setUsers(res.data.filter(u => (u._id || u.id) !== myId)))
+      .catch(err => console.error('Failed to fetch users:', err));
+  }, [myId, token]);
 
   useEffect(() => {
-    if (selectedUser) {
-      axios.get(`${API_URL}/messages/${myId}/${selectedUser._id}`).then(res => setMessages(res.data));
+    if (selectedUser && myId) {
+      axios.get(`${API_URL}/api/messages/${myId}/${selectedUser._id || selectedUser.id}`)
+        .then(res => setMessages(res.data || []))
+        .catch(err => console.error('Failed to fetch messages:', err));
     }
   }, [selectedUser, myId]);
 
@@ -419,12 +425,11 @@ function ChatDashboard({ token, myId, myUsername }) {
     e.preventDefault();
     if (input.trim() && selectedUser) {
       try {
-        const response = await axios.post(`${API_URL}/messages/send`, {
-          recipientId: selectedUser._id,
+        const response = await axios.post(`${API_URL}/api/message`, {
+          token,
+          recipientId: selectedUser._id || selectedUser.id,
           content: input,
           type: 'text'
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
         });
         setInput('');
         // Message will be received via SSE, but we can also add it optimistically
@@ -449,7 +454,7 @@ function ChatDashboard({ token, myId, myUsername }) {
     formData.append('file', file);
 
     try {
-      const res = await axios.post(`${API_URL}/upload`, formData, {
+      const res = await axios.post(`${API_URL}/api/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       const { fileUrl } = res.data;
@@ -487,11 +492,10 @@ function ChatDashboard({ token, myId, myUsername }) {
 
       peer.onicecandidate = (event) => {
         if (event.candidate) {
-          axios.post(`${API_URL}/calls/ice-candidate`, {
-            to: selectedUser._id,
+          axios.post(`${API_URL}/api/calls/ice-candidate`, {
+            token,
+            to: selectedUser._id || selectedUser.id,
             candidate: event.candidate
-          }, {
-            headers: { Authorization: `Bearer ${token}` }
           }).catch(err => console.error('Failed to send ICE candidate:', err));
         }
       };
@@ -504,13 +508,12 @@ function ChatDashboard({ token, myId, myUsername }) {
 
       peer.createOffer().then((offer) => {
         peer.setLocalDescription(offer);
-        axios.post(`${API_URL}/calls/initiate`, {
-          userToCall: selectedUser._id,
+        axios.post(`${API_URL}/api/calls/initiate`, {
+          token,
+          userToCall: selectedUser._id || selectedUser.id,
           signalData: offer,
           fromId: myId,
           fromUsername: myUsername
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
         }).catch(err => {
           console.error('Failed to initiate call:', err);
           alert('Failed to initiate call');
@@ -530,11 +533,10 @@ function ChatDashboard({ token, myId, myUsername }) {
 
       peer.onicecandidate = (event) => {
         if (event.candidate) {
-          axios.post(`${API_URL}/calls/ice-candidate`, {
+          axios.post(`${API_URL}/api/calls/ice-candidate`, {
+            token,
             to: caller,
             candidate: event.candidate
-          }, {
-            headers: { Authorization: `Bearer ${token}` }
           }).catch(err => console.error('Failed to send ICE candidate:', err));
         }
       };
@@ -548,11 +550,10 @@ function ChatDashboard({ token, myId, myUsername }) {
       peer.setRemoteDescription(new RTCSessionDescription(callerSignal));
       peer.createAnswer().then((answer) => {
         peer.setLocalDescription(answer);
-        axios.post(`${API_URL}/calls/answer`, {
+        axios.post(`${API_URL}/api/calls/answer`, {
+          token,
           signal: answer,
           to: caller
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
         }).catch(err => {
           console.error('Failed to answer call:', err);
           alert('Failed to answer call');
@@ -564,10 +565,9 @@ function ChatDashboard({ token, myId, myUsername }) {
   const leaveCall = () => {
     const otherId = selectedUser?._id || caller;
     if (otherId) {
-      axios.post(`${API_URL}/calls/end`, {
+      axios.post(`${API_URL}/api/calls/end`, {
+        token,
         to: otherId
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       }).catch(err => console.error('Failed to end call:', err));
     }
     endCallCleanup();
