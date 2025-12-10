@@ -1,90 +1,139 @@
-const db = require('../db');
+const supabase = require('../db');
 
 const Group = {
     // Create group
-    create: (data) => {
-        const stmt = db.prepare('INSERT INTO groups (name, admin_id, avatar) VALUES (?, ?, ?)');
-        const result = stmt.run(data.name, data.admin, data.avatar || '');
-        const groupId = result.lastInsertRowid;
+    create: async (data) => {
+        // Insert group
+        const { data: group, error: groupError } = await supabase
+            .from('groups')
+            .insert({
+                name: data.name,
+                admin_id: data.admin,
+                avatar: data.avatar || ''
+            })
+            .select()
+            .single();
+
+        if (groupError) throw groupError;
 
         // Add members
         if (data.members && data.members.length > 0) {
-            const memberStmt = db.prepare('INSERT INTO group_members (group_id, user_id) VALUES (?, ?)');
-            const insertMany = db.transaction((members) => {
-                for (const memberId of members) {
-                    memberStmt.run(groupId, memberId);
-                }
-            });
-            insertMany(data.members);
+            const membersToInsert = data.members.map(memberId => ({
+                group_id: group.id,
+                user_id: memberId
+            }));
+
+            const { error: membersError } = await supabase
+                .from('group_members')
+                .insert(membersToInsert);
+
+            if (membersError) {
+                console.error('Error adding group members:', membersError);
+                // Continue anyway
+            }
         }
 
-        return Group.findById(groupId);
+        return Group.findById(group.id);
     },
 
     // Find by ID
-    findById: (id) => {
-        const groupStmt = db.prepare('SELECT * FROM groups WHERE id = ?');
-        const group = groupStmt.get(id);
-        if (!group) return null;
+    findById: async (id) => {
+        const idInt = typeof id === 'string' ? parseInt(id) : id;
+
+        // Get group with admin
+        const { data: group, error: groupError } = await supabase
+            .from('groups')
+            .select(`
+                *,
+                admin:users!groups_admin_id_fkey (
+                    id,
+                    username,
+                    nickname,
+                    avatar,
+                    role
+                )
+            `)
+            .eq('id', idInt)
+            .single();
+
+        if (groupError || !group) return null;
 
         // Get members
-        const memberStmt = db.prepare(`
-            SELECT u.* FROM users u
-            INNER JOIN group_members gm ON u.id = gm.user_id
-            WHERE gm.group_id = ?
-        `);
-        const members = memberStmt.all(id);
+        const { data: members, error: membersError } = await supabase
+            .from('group_members')
+            .select(`
+                user_id,
+                users!group_members_user_id_fkey (
+                    id,
+                    username,
+                    nickname,
+                    avatar,
+                    role
+                )
+            `)
+            .eq('group_id', idInt);
 
-        // Get admin
-        const admin = db.prepare('SELECT * FROM users WHERE id = ?').get(group.admin_id);
+        const membersList = members ? members.map(m => m.users).filter(Boolean) : [];
 
         return {
             _id: group.id,
             id: group.id,
             name: group.name,
             avatar: group.avatar,
-            admin: admin,
+            admin: Array.isArray(group.admin) ? group.admin[0] : group.admin,
             admin_id: group.admin_id,
-            members: members,
+            members: membersList,
             createdAt: group.createdAt
         };
     },
 
     // Find groups
-    find: (query = {}) => {
-        let sql = 'SELECT DISTINCT g.* FROM groups g';
-        const params = [];
+    find: async (query = {}) => {
+        let queryBuilder = supabase.from('groups').select('*');
 
         if (query.members) {
-            sql += ' INNER JOIN group_members gm ON g.id = gm.group_id WHERE gm.user_id = ?';
-            params.push(query.members);
-        } else {
-            sql += ' WHERE 1=1';
+            const memberIdInt = typeof query.members === 'string' ? parseInt(query.members) : query.members;
+            // Get groups where user is a member
+            const { data: memberGroups, error: memberError } = await supabase
+                .from('group_members')
+                .select('group_id')
+                .eq('user_id', memberIdInt);
+
+            if (memberError) {
+                console.error('Error finding member groups:', memberError);
+                return [];
+            }
+
+            const groupIds = memberGroups.map(mg => mg.group_id);
+            if (groupIds.length === 0) return [];
+
+            queryBuilder = queryBuilder.in('id', groupIds);
         }
 
-        const stmt = db.prepare(sql);
-        const groups = stmt.all(...params);
+        const { data: groups, error } = await queryBuilder;
+
+        if (error) {
+            console.error('Group find error:', error);
+            return [];
+        }
 
         // Populate members and admin for each group
-        return groups.map(group => {
-            const fullGroup = Group.findById(group.id);
-            return {
-                _id: fullGroup.id,
-                id: fullGroup.id,
-                name: fullGroup.name,
-                avatar: fullGroup.avatar,
-                admin: fullGroup.admin,
-                members: fullGroup.members,
-                createdAt: fullGroup.createdAt
-            };
-        });
+        const populatedGroups = await Promise.all(
+            (groups || []).map(group => Group.findById(group.id))
+        );
+
+        return populatedGroups.filter(Boolean);
     },
 
     // Delete by ID
-    findByIdAndDelete: (id) => {
-        // Delete will cascade due to foreign keys
-        const stmt = db.prepare('DELETE FROM groups WHERE id = ?');
-        stmt.run(id);
+    findByIdAndDelete: async (id) => {
+        const idInt = typeof id === 'string' ? parseInt(id) : id;
+        const { error } = await supabase
+            .from('groups')
+            .delete()
+            .eq('id', idInt);
+
+        if (error) throw error;
         return { success: true };
     }
 };

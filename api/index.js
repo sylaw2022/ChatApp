@@ -7,13 +7,14 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
 
-// Initialize SQLite database
-let db, User, Message, Group;
+// Initialize Supabase database
+let supabase, User, Message, Group;
 try {
-    db = require('./db');
+    supabase = require('./db');
     User = require('./models/User');
     Message = require('./models/Message');
     Group = require('./models/Group');
+    console.log('Supabase models loaded successfully');
 } catch (error) {
     console.error('Database initialization error:', error);
     // Continue anyway - errors will be caught in routes
@@ -104,7 +105,7 @@ app.post('/api/profile/avatar', upload.single('file'), async (req, res) => {
     try {
         const uid = jwt.verify(token, JWT_SECRET).id;
         const fileUrl = await uploadToCloudinary(req.file.buffer);
-        User.findByIdAndUpdate(uid, { avatar: fileUrl });
+        await User.findByIdAndUpdate(uid, { avatar: fileUrl });
         res.json({ fileUrl });
     } catch (e) { res.status(400).json({ error: 'Error' }); }
 });
@@ -122,11 +123,11 @@ app.post('/api/register', async (req, res) => {
         }
         const role = username.startsWith('admin') ? 'admin' : 'user';
         const hashedPassword = await bcrypt.hash(password, 10);
-        User.create({ username, password: hashedPassword, role });
+        await User.create({ username, password: hashedPassword, role });
         res.json({ msg: 'Created' });
     } catch (e) { 
         console.error('Registration error:', e);
-        if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        if (e.code === 'SQLITE_CONSTRAINT_UNIQUE' || e.code === '23505') {
             return res.status(400).json({ error: 'Username already exists' });
         }
         return res.status(500).json({ error: e.message || 'Registration failed' });
@@ -139,7 +140,7 @@ app.post('/api/login', async (req, res) => {
             return res.status(500).json({ error: 'Database not initialized' });
         }
         const { username, password } = req.body;
-        const user = User.findOne({ username });
+        const user = await User.findOne({ username });
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(400).json({ error: 'Invalid credentials' });
         }
@@ -161,13 +162,13 @@ app.put('/api/profile', async (req, res) => {
             return res.status(401).json({ error: 'Token required' });
         }
         const decoded = jwt.verify(token, JWT_SECRET);
-        const uid = parseInt(decoded.id); // Convert to integer for SQLite
+        const uid = parseInt(decoded.id);
         
         const updateData = {};
         if (nickname !== undefined) updateData.nickname = nickname;
         if (isVisible !== undefined) updateData.isVisible = isVisible;
         
-        const user = User.findByIdAndUpdate(uid, updateData);
+        const user = await User.findByIdAndUpdate(uid, updateData);
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
@@ -189,15 +190,18 @@ app.post('/api/friends/request', async (req, res) => {
         const { token, toUserId } = req.body;
         const fromId = jwt.verify(token, JWT_SECRET).id;
         if(fromId === toUserId) return res.status(400).json({error: "Cannot add self"});
-        const targetUser = User.findById(toUserId);
+        const targetUser = await User.findById(toUserId);
         if(!targetUser) return res.status(404).json({error: "User not found"});
         
-        if(User.hasFriendRequest(fromId, toUserId) || User.isFriend(fromId, toUserId)) {
+        const hasRequest = await User.hasFriendRequest(fromId, toUserId);
+        const isFriend = await User.isFriend(fromId, toUserId);
+        if(hasRequest || isFriend) {
             return res.json({msg: 'Already requested/friends'});
         }
         
-        User.addFriendRequest(fromId, toUserId);
-        sendEvent(toUserId, 'friend_request', { from: User.findById(fromId) });
+        await User.addFriendRequest(fromId, toUserId);
+        const fromUser = await User.findById(fromId);
+        sendEvent(toUserId, 'friend_request', { from: fromUser });
         res.json({ success: true });
     } catch (e) {
         console.error('Friend request error:', e);
@@ -212,8 +216,8 @@ app.post('/api/friends/accept', async (req, res) => {
         }
         const { token, fromUserId } = req.body;
         const myId = jwt.verify(token, JWT_SECRET).id;
-        User.removeFriendRequest(fromUserId, myId);
-        User.addFriend(myId, fromUserId);
+        await User.removeFriendRequest(fromUserId, myId);
+        await User.addFriend(myId, fromUserId);
         sendEvent(fromUserId, 'friend_accepted', { fromId: myId });
         res.json({ success: true });
     } catch (e) {
@@ -230,8 +234,8 @@ app.get('/api/my-network', async (req, res) => {
         const token = req.headers['authorization']?.split(' ')[1];
         if(!token) return res.status(401).json({ error: 'Unauthorized' });
         const uid = jwt.verify(token, JWT_SECRET).id;
-        const friends = User.getFriends(uid);
-        const requests = User.getFriendRequests(uid);
+        const friends = await User.getFriends(uid);
+        const requests = await User.getFriendRequests(uid);
         res.json({ friends, requests });
     } catch (e) {
         console.error('My network error:', e);
@@ -244,7 +248,7 @@ app.get('/api/users', async (req, res) => {
         if (!User) {
             return res.status(500).json({ error: 'Database not initialized' });
         }
-        const users = User.find({ $or: [{ isVisible: true }, { isVisible: { $exists: false } }] });
+        const users = await User.find({ $or: [{ isVisible: true }, { isVisible: { $exists: false } }] });
         const filtered = users.map(u => ({
             _id: u.id,
             username: u.username,
@@ -267,7 +271,7 @@ app.post('/api/groups', async (req, res) => {
         const { token, name, members } = req.body;
         const adminId = jwt.verify(token, JWT_SECRET).id;
         const allMembers = [...new Set([...members, adminId].map(id => parseInt(id)))];
-        const group = Group.create({ name, admin: adminId, members: allMembers });
+        const group = await Group.create({ name, admin: adminId, members: allMembers });
         allMembers.forEach(m => sendEvent(m, 'group_created', group));
         res.json(group);
     } catch (e) {
@@ -283,14 +287,16 @@ app.delete('/api/groups/:id', async (req, res) => {
         }
         const token = req.headers['authorization']?.split(' ')[1];
         const uid = jwt.verify(token, JWT_SECRET).id;
-        const group = Group.findById(req.params.id);
+        const group = await Group.findById(req.params.id);
         if (!group) return res.status(404).json({error: "Group not found"});
-        const user = User.findById(uid);
+        const user = await User.findById(uid);
         if (group.admin_id !== uid && user.role !== 'admin') return res.status(403).json({error: "Not authorized"});
         
-        group.members.forEach(m => sendEvent(m.id, 'group_deleted', { groupId: group.id }));
-        Group.findByIdAndDelete(req.params.id);
-        Message.deleteMany({ groupId: req.params.id });
+        if (group.members) {
+            group.members.forEach(m => sendEvent(m.id || m, 'group_deleted', { groupId: group.id }));
+        }
+        await Group.findByIdAndDelete(req.params.id);
+        await Message.deleteMany({ groupId: req.params.id });
         res.json({ success: true });
     } catch (e) {
         console.error('Delete group error:', e);
@@ -318,7 +324,7 @@ app.get('/api/groups/:groupId/details', async (req, res) => {
         if (!Group) {
             return res.status(500).json({ error: 'Database not initialized' });
         }
-        const group = Group.findById(req.params.groupId);
+        const group = await Group.findById(req.params.groupId);
         res.json(group);
     } catch (e) {
         console.error('Group details error:', e);
@@ -331,7 +337,7 @@ app.get('/api/groups/:groupId/messages', async (req, res) => {
         if (!Message) {
             return res.status(500).json({ error: 'Database not initialized' });
         }
-        const msgs = Message.find({ groupId: req.params.groupId });
+        const msgs = await Message.find({ groupId: req.params.groupId });
         res.json(msgs);
     } catch (e) {
         console.error('Group messages error:', e);
@@ -346,12 +352,15 @@ app.post('/api/message', async (req, res) => {
         }
         const { token, recipientId, groupId, content, type, fileUrl } = req.body;
         const senderId = jwt.verify(token, JWT_SECRET).id;
-        const msg = Message.create({ sender: senderId, recipient: recipientId, groupId, content, type, fileUrl });
+        const msg = await Message.create({ sender: senderId, recipient: recipientId, groupId, content, type, fileUrl });
 
         if(groupId) {
-            const g = Group.findById(groupId);
+            const g = await Group.findById(groupId);
             if (g && g.members) {
-                g.members.forEach(m => sendEvent(m.id, 'receive_message', msg));
+                g.members.forEach(m => {
+                    const memberId = m.id || m;
+                    sendEvent(memberId, 'receive_message', msg);
+                });
             }
         } else {
             sendEvent(recipientId, 'receive_message', msg);
@@ -367,7 +376,7 @@ app.post('/api/message', async (req, res) => {
 app.get('/api/admin/users', async (req,res) => { 
     try {
         if (!User) return res.status(500).json({ error: 'Database not initialized' });
-        res.json(User.find()); 
+        const users = await User.find(); res.json(users); 
     } catch (e) {
         console.error('Admin users error:', e);
         res.status(500).json({ error: e.message || 'Failed to fetch users' });
@@ -376,7 +385,7 @@ app.get('/api/admin/users', async (req,res) => {
 app.delete('/api/admin/users/:id', async (req,res) => { 
     try {
         if (!User) return res.status(500).json({ error: 'Database not initialized' });
-        User.findByIdAndDelete(req.params.id); 
+        await User.findByIdAndDelete(req.params.id); 
         res.json({ok:true}); 
     } catch (e) {
         console.error('Delete user error:', e);
@@ -391,7 +400,7 @@ app.post('/api/signal', (req, res) => {
 app.get('/api/messages/:u1/:u2', async (req, res) => {
     try {
         if (!Message) return res.status(500).json({ error: 'Database not initialized' });
-        const m = Message.find({ 
+        const m = await Message.find({ 
             groupId: null, 
             $or: [
                 {sender: parseInt(req.params.u1), recipient: parseInt(req.params.u2)},
