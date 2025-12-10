@@ -152,7 +152,9 @@ function App() {
 
       {/* Main Content */}
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        {view === 'admin' && user?.role === 'admin' ? (
+        {view === 'profile' ? (
+            <ProfileView token={token} user={user} setUser={setUser} />
+        ) : view === 'admin' && user?.role === 'admin' ? (
             <AdminDashboard token={token} />
         ) : (
             <ChatDashboard token={token} myId={user?.id} myUsername={user?.username} />
