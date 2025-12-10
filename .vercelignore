@@ -4,14 +4,45 @@
 
 # Ignore Local Environment variables (You set these in Vercel Dashboard)
 .env
+.env.local
+.env.*.local
 
 # Ignore Local Node Modules (Vercel installs its own)
 node_modules
 client/node_modules
 
+# Ignore local uploads (use Cloudinary in production)
+uploads/
+
+# Ignore SQLite database (Vercel uses ephemeral filesystem)
+data/
+*.db
+*.db-journal
+
 # Ignore documentation
 README.md
+*.md
 
 # Ignore local tool configs that aren't needed for build
 .eslintrc.json
 .prettierrc
+.editorconfig
+
+# Ignore test files
+**/*.test.js
+**/*.test.jsx
+**/*.spec.js
+**/*.spec.jsx
+__tests__/
+coverage/
+
+# Ignore development files
+.vscode/
+.idea/
+*.log
+.DS_Store
+
+# Ignore build outputs (Vercel builds its own)
+client/dist/
+dist/
+build/

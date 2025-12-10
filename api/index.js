@@ -1,13 +1,14 @@
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const multer = require('multer'); // Still needed to parse the file
-const cloudinary = require('cloudinary').v2; // NEW
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
 
+// Initialize SQLite database
+const db = require('./db');
 const User = require('./models/User');
 const Message = require('./models/Message');
 const Group = require('./models/Group');
@@ -41,15 +42,8 @@ const uploadToCloudinary = async (fileBuffer) => {
     });
 };
 
-// --- DB CONNECTION ---
-const { MONGO_USER, MONGO_PASS, MONGO_DB='chatapp', MONGO_HOST='localhost', MONGO_PORT='27017', MONGO_URI } = process.env;
-
-// Prioritize MONGO_URI if provided (Vercel usually provides the full string)
-const dbUri = MONGO_URI || (MONGO_USER && MONGO_PASS 
-    ? `mongodb://${encodeURIComponent(MONGO_USER)}:${encodeURIComponent(MONGO_PASS)}@${MONGO_HOST}:${MONGO_PORT}/${MONGO_DB}?authSource=admin`
-    : `mongodb://${MONGO_HOST}:${MONGO_PORT}/${MONGO_DB}`);
-
-mongoose.connect(dbUri).then(() => console.log('MongoDB Connected')).catch(e => console.log(e));
+// SQLite database is initialized in db.js
+console.log('SQLite database ready');
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
 // --- SSE SETUP ---
@@ -94,7 +88,7 @@ app.post('/api/profile/avatar', upload.single('file'), async (req, res) => {
     try {
         const uid = jwt.verify(token, JWT_SECRET).id;
         const fileUrl = await uploadToCloudinary(req.file.buffer);
-        await User.findByIdAndUpdate(uid, { avatar: fileUrl });
+        User.findByIdAndUpdate(uid, { avatar: fileUrl });
         res.json({ fileUrl });
     } catch (e) { res.status(400).json({ error: 'Error' }); }
 });
@@ -106,23 +100,29 @@ app.post('/api/register', async (req, res) => {
         const { username, password } = req.body;
         const role = username.startsWith('admin') ? 'admin' : 'user';
         const hashedPassword = await bcrypt.hash(password, 10);
-        await User.create({ username, password: hashedPassword, role });
+        User.create({ username, password: hashedPassword, role });
         res.json({ msg: 'Created' });
-    } catch (e) { res.status(400).json({ error: 'Username exists' }); }
+    } catch (e) { 
+        if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+            res.status(400).json({ error: 'Username exists' });
+        } else {
+            res.status(400).json({ error: 'Registration failed' });
+        }
+    }
 });
 
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
-    const user = await User.findOne({ username });
+    const user = User.findOne({ username });
     if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: 'Invalid' });
-    const token = jwt.sign({ id: user._id, username: user.username, role: user.role }, JWT_SECRET);
-    res.json({ token, ...user._doc });
+    const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET);
+    res.json({ token, userId: user.id, username: user.username, role: user.role, ...user });
 });
 
 app.put('/api/profile', async (req, res) => {
     const { token, nickname, isVisible } = req.body;
     const uid = jwt.verify(token, JWT_SECRET).id;
-    const user = await User.findByIdAndUpdate(uid, { nickname, isVisible }, { new: true });
+    const user = User.findByIdAndUpdate(uid, { nickname, isVisible });
     res.json(user);
 });
 
@@ -130,19 +130,23 @@ app.post('/api/friends/request', async (req, res) => {
     const { token, toUserId } = req.body;
     const fromId = jwt.verify(token, JWT_SECRET).id;
     if(fromId === toUserId) return res.status(400).json({error: "Cannot add self"});
-    const targetUser = await User.findById(toUserId);
-    if(targetUser.friendRequests.includes(fromId) || targetUser.friends.includes(fromId)) return res.json({msg: 'Already requested/friends'});
-    targetUser.friendRequests.push(fromId);
-    await targetUser.save();
-    sendEvent(toUserId, 'friend_request', { from: await User.findById(fromId) });
+    const targetUser = User.findById(toUserId);
+    if(!targetUser) return res.status(404).json({error: "User not found"});
+    
+    if(User.hasFriendRequest(fromId, toUserId) || User.isFriend(fromId, toUserId)) {
+        return res.json({msg: 'Already requested/friends'});
+    }
+    
+    User.addFriendRequest(fromId, toUserId);
+    sendEvent(toUserId, 'friend_request', { from: User.findById(fromId) });
     res.json({ success: true });
 });
 
 app.post('/api/friends/accept', async (req, res) => {
     const { token, fromUserId } = req.body;
     const myId = jwt.verify(token, JWT_SECRET).id;
-    await User.findByIdAndUpdate(myId, { $push: { friends: fromUserId }, $pull: { friendRequests: fromUserId } });
-    await User.findByIdAndUpdate(fromUserId, { $push: { friends: myId } });
+    User.removeFriendRequest(fromUserId, myId);
+    User.addFriend(myId, fromUserId);
     sendEvent(fromUserId, 'friend_accepted', { fromId: myId });
     res.json({ success: true });
 });
@@ -151,20 +155,28 @@ app.get('/api/my-network', async (req, res) => {
     const token = req.headers['authorization']?.split(' ')[1];
     if(!token) return res.status(401);
     const uid = jwt.verify(token, JWT_SECRET).id;
-    const user = await User.findById(uid).populate('friends', 'username nickname avatar').populate('friendRequests', 'username nickname avatar');
-    res.json({ friends: user.friends, requests: user.friendRequests });
+    const friends = User.getFriends(uid);
+    const requests = User.getFriendRequests(uid);
+    res.json({ friends, requests });
 });
 
 app.get('/api/users', async (req, res) => {
-    const users = await User.find({ $or: [{ isVisible: true }, { isVisible: { $exists: false } }] }, 'username nickname avatar _id role');
-    res.json(users);
+    const users = User.find({ $or: [{ isVisible: true }, { isVisible: { $exists: false } }] });
+    const filtered = users.map(u => ({
+        _id: u.id,
+        username: u.username,
+        nickname: u.nickname,
+        avatar: u.avatar,
+        role: u.role
+    }));
+    res.json(filtered);
 });
 
 app.post('/api/groups', async (req, res) => {
     const { token, name, members } = req.body;
     const adminId = jwt.verify(token, JWT_SECRET).id;
-    const allMembers = [...new Set([...members, adminId].map(id => String(id)))];
-    const group = await Group.create({ name, admin: adminId, members: allMembers });
+    const allMembers = [...new Set([...members, adminId].map(id => parseInt(id)))];
+    const group = Group.create({ name, admin: adminId, members: allMembers });
     allMembers.forEach(m => sendEvent(m, 'group_created', group));
     res.json(group);
 });
@@ -172,67 +184,65 @@ app.post('/api/groups', async (req, res) => {
 app.delete('/api/groups/:id', async (req, res) => {
     const token = req.headers['authorization']?.split(' ')[1];
     const uid = jwt.verify(token, JWT_SECRET).id;
-    const group = await Group.findById(req.params.id);
+    const group = Group.findById(req.params.id);
     if (!group) return res.status(404).json({error: "Group not found"});
-    const user = await User.findById(uid);
-    if (group.admin.toString() !== uid && user.role !== 'admin') return res.status(403).json({error: "Not authorized"});
+    const user = User.findById(uid);
+    if (group.admin_id !== uid && user.role !== 'admin') return res.status(403).json({error: "Not authorized"});
     
-    group.members.forEach(m => sendEvent(m.toString(), 'group_deleted', { groupId: group._id }));
-    await Group.findByIdAndDelete(req.params.id);
-    await Message.deleteMany({ groupId: group._id });
+    group.members.forEach(m => sendEvent(m.id, 'group_deleted', { groupId: group.id }));
+    Group.findByIdAndDelete(req.params.id);
+    Message.deleteMany({ groupId: req.params.id });
     res.json({ success: true });
 });
 
 app.get('/api/groups', async (req, res) => {
     const token = req.headers['authorization']?.split(' ')[1];
     const uid = jwt.verify(token, JWT_SECRET).id;
-    const groups = await Group.find({ members: uid }).populate('members', 'username nickname avatar').populate('admin', 'username nickname');
+    const groups = Group.find({ members: uid });
     res.json(groups);
 });
 
 app.get('/api/groups/:groupId/details', async (req, res) => {
-    const group = await Group.findById(req.params.groupId).populate('members', 'username nickname avatar').populate('admin', 'username nickname avatar');
+    const group = Group.findById(req.params.groupId);
     res.json(group);
 });
 
 app.get('/api/groups/:groupId/messages', async (req, res) => {
-    const msgs = await Message.find({ groupId: req.params.groupId }).populate('sender', 'username nickname avatar').sort({timestamp:1});
+    const msgs = Message.find({ groupId: req.params.groupId });
     res.json(msgs);
 });
 
 app.post('/api/message', async (req, res) => {
     const { token, recipientId, groupId, content, type, fileUrl } = req.body;
     const senderId = jwt.verify(token, JWT_SECRET).id;
-    let msg = await Message.create({ sender: senderId, recipient: recipientId, groupId, content, type, fileUrl });
-    msg = await msg.populate('sender', 'username nickname avatar');
+    const msg = Message.create({ sender: senderId, recipient: recipientId, groupId, content, type, fileUrl });
 
     if(groupId) {
-        const g = await Group.findById(groupId);
-        g.members.forEach(m => sendEvent(m.toString(), 'receive_message', msg));
+        const g = Group.findById(groupId);
+        g.members.forEach(m => sendEvent(m.id, 'receive_message', msg));
     } else {
         sendEvent(recipientId, 'receive_message', msg);
         sendEvent(senderId, 'receive_message', msg);
     }
-    res.json({success:true});
+    res.json({success:true, message: msg});
 });
 
-app.get('/api/admin/users', async (req,res) => { res.json(await User.find()); });
-app.delete('/api/admin/users/:id', async (req,res) => { await User.findByIdAndDelete(req.params.id); res.json({ok:true}); });
+app.get('/api/admin/users', async (req,res) => { res.json(User.find()); });
+app.delete('/api/admin/users/:id', async (req,res) => { User.findByIdAndDelete(req.params.id); res.json({ok:true}); });
 app.post('/api/signal', (req, res) => { 
     const decoded = jwt.verify(req.body.token, JWT_SECRET);
     sendEvent(req.body.to, req.body.type, { ...req.body.payload, from: decoded.id });
     res.json({ok:true});
 });
 app.get('/api/messages/:u1/:u2', async (req, res) => {
-    const m = await Message.find({ groupId:null, $or:[{sender:req.params.u1, recipient:req.params.u2},{sender:req.params.u2, recipient:req.params.u1}] }).populate('sender','username nickname avatar').sort({timestamp:1});
+    const m = Message.find({ 
+        groupId: null, 
+        $or: [
+            {sender: parseInt(req.params.u1), recipient: parseInt(req.params.u2)},
+            {sender: parseInt(req.params.u2), recipient: parseInt(req.params.u1)}
+        ]
+    });
     res.json(m);
 });
 
-// Only start the server if NOT running in Vercel
-if (process.env.NODE_ENV !== 'production') {
-    const PORT = process.env.PORT || 4000;
-    app.listen(PORT, () => console.log(`Server running on ${PORT}`));
-}
-
-// REQUIRED: Export the app for Vercel
-module.exports = app;
+app.listen(process.env.PORT || 4000, () => console.log('Server Running'));
