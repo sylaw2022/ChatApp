@@ -1,0 +1,17 @@
+# Ignore Git files
+.git
+.gitignore
+
+# Ignore Local Environment variables (You set these in Vercel Dashboard)
+.env
+
+# Ignore Local Node Modules (Vercel installs its own)
+node_modules
+client/node_modules
+
+# Ignore documentation
+README.md
+
+# Ignore local tool configs that aren't needed for build
+.eslintrc.json
+.prettierrc
