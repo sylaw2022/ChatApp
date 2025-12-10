@@ -209,23 +209,43 @@ app.post('/api/friends/request', async (req, res) => {
             return res.status(500).json({ error: 'Database not initialized' });
         }
         const { token, toUserId } = req.body;
-        const fromId = jwt.verify(token, JWT_SECRET).id;
-        if(fromId === toUserId) return res.status(400).json({error: "Cannot add self"});
-        const targetUser = await User.findById(toUserId);
-        if(!targetUser) return res.status(404).json({error: "User not found"});
-        
-        const hasRequest = await User.hasFriendRequest(fromId, toUserId);
-        const isFriend = await User.isFriend(fromId, toUserId);
-        if(hasRequest || isFriend) {
-            return res.json({msg: 'Already requested/friends'});
+        if (!token || !toUserId) {
+            return res.status(400).json({ error: 'Token and toUserId are required' });
         }
         
-        await User.addFriendRequest(fromId, toUserId);
-        const fromUser = await User.findById(fromId);
-        sendEvent(toUserId, 'friend_request', { from: fromUser });
-        res.json({ success: true });
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const fromId = decoded.id;
+        const toId = typeof toUserId === 'string' ? parseInt(toUserId) : toUserId;
+        const fromIdInt = typeof fromId === 'string' ? parseInt(fromId) : fromId;
+        
+        if (fromIdInt === toId) {
+            return res.status(400).json({ error: "Cannot add self" });
+        }
+        
+        const targetUser = await User.findById(toId);
+        if (!targetUser) {
+            return res.status(404).json({ error: "User not found" });
+        }
+        
+        const hasRequest = await User.hasFriendRequest(fromIdInt, toId);
+        const isFriend = await User.isFriend(fromIdInt, toId);
+        
+        if (hasRequest) {
+            return res.status(400).json({ error: 'Friend request already sent' });
+        }
+        if (isFriend) {
+            return res.status(400).json({ error: 'Already friends' });
+        }
+        
+        await User.addFriendRequest(fromIdInt, toId);
+        const fromUser = await User.findById(fromIdInt);
+        sendEvent(toId, 'friend_request', { from: fromUser });
+        res.json({ success: true, message: 'Friend request sent' });
     } catch (e) {
         console.error('Friend request error:', e);
+        if (e.name === 'JsonWebTokenError' || e.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
         res.status(500).json({ error: e.message || 'Friend request failed' });
     }
 });

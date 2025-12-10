@@ -861,34 +861,79 @@ function ChatDashboard({ token, myId, myUsername }) {
           )}
           
           {/* All Users */}
-          {activeTab === 'all' && users.map(u => (
-            <div 
-              key={u._id || u.id} 
-              onClick={() => { setSelectedUser(u); setSelectedGroup(null); }}
-              style={{ 
-                padding: '15px 20px', 
-                cursor: 'pointer',
-                background: selectedUser?._id === (u._id || u.id) ? '#e9ecef' : 'transparent',
-                borderBottom: '1px solid #eee',
-                fontWeight: selectedUser?._id === (u._id || u.id) ? 'bold' : 'normal'
-              }}
-            >
-              {u.username}
-              {!friends.some(f => (f._id || f.id) === (u._id || u.id)) && (
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    axios.post(`${API_URL}/api/friends/request`, { token, toUserId: u._id || u.id })
-                      .then(() => alert('Friend request sent!'))
-                      .catch(err => alert('Failed to send request'));
-                  }}
-                  style={{ marginLeft: '10px', padding: '2px 8px', fontSize: '0.8em', background: '#007bff', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
-                >
-                  Add
-                </button>
+          {activeTab === 'all' && (
+            <>
+              {users.length > 0 ? users.map(u => {
+                const userId = u._id || u.id;
+                const isFriend = friends.some(f => (f._id || f.id) === userId);
+                const hasRequest = requests.some(r => (r._id || r.id) === userId);
+                const canAdd = !isFriend && !hasRequest;
+                
+                return (
+                  <div 
+                    key={userId} 
+                    onClick={() => { setSelectedUser(u); setSelectedGroup(null); }}
+                    style={{ 
+                      padding: '15px 20px', 
+                      cursor: 'pointer',
+                      background: selectedUser?._id === userId ? '#e9ecef' : 'transparent',
+                      borderBottom: '1px solid #eee',
+                      fontWeight: selectedUser?._id === userId ? 'bold' : 'normal'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                      <span>{u.nickname || u.username}</span>
+                      {canAdd && (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const targetUserId = u._id || u.id;
+                            axios.post(`${API_URL}/api/friends/request`, { token, toUserId: targetUserId })
+                              .then((res) => {
+                                alert(res.data?.message || 'Friend request sent!');
+                                // Refresh requests list
+                                axios.get(`${API_URL}/api/my-network`, {
+                                  headers: { Authorization: `Bearer ${token}` }
+                                }).then(res => {
+                                  setRequests(res.data.requests || []);
+                                }).catch(err => console.error('Failed to refresh network:', err));
+                              })
+                              .catch(err => {
+                                const errorMsg = err.response?.data?.error || err.message || 'Failed to send request';
+                                alert(errorMsg);
+                                console.error('Add friend error:', err);
+                              });
+                          }}
+                          style={{ 
+                            marginLeft: '10px', 
+                            padding: '4px 10px', 
+                            fontSize: '0.85em', 
+                            background: '#28a745', 
+                            color: 'white', 
+                            border: 'none', 
+                            borderRadius: '4px', 
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          + Add Friend
+                        </button>
+                      )}
+                      {hasRequest && (
+                        <span style={{ fontSize: '0.75em', color: '#888', marginLeft: '10px' }}>Request sent</span>
+                      )}
+                      {isFriend && (
+                        <span style={{ fontSize: '0.75em', color: '#28a745', marginLeft: '10px' }}>✓ Friend</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>No users found</div>
               )}
-            </div>
-          ))}
+            </>
+          )}
           
         </div>
       </div>
