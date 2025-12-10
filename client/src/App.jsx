@@ -1,149 +1,47 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const API_URL = ''; 
+// API URL configuration - works for both local and Vercel deployment
+const API_URL = import.meta.env.VITE_API_URL || 
+  (import.meta.env.PROD 
+    ? (window.location.origin) 
+    : 'http://localhost:4000');
 
-// --- THEME CONSTANTS ---
-const THEME = {
-  primary: '#2563EB',    // Royal Blue
-  primaryHover: '#1d4ed8',
-  bgApp: '#F3F4F6',      // Cool Gray 100
-  bgChat: '#E5E7EB',     // Cool Gray 200
-  textMain: '#111827',   // Gray 900
-  textMuted: '#6B7280',  // Gray 500
-  border: '#D1D5DB',
-  success: '#059669',
-  danger: '#DC2626',
-  msgMe: '#2563EB',      // Blue for me
-  msgOther: '#FFFFFF',   // White for others
-  activeItem: '#DBEAFE'  // Blue 100
-};
-
-// --- AVATAR COLOR GENERATOR ---
-const AVATAR_COLORS = [
-  '#EF4444', '#F97316', '#F59E0B', '#10B981', '#14B8A6', 
-  '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899'
-];
-
-const getAvatarColor = (name) => {
-  if (!name) return '#9CA3AF';
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-};
-
-// --- ICONS ---
-const IconWrapper = ({ children, onClick, color }) => (
-    <div onClick={onClick} style={{ 
-        cursor: onClick ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', 
-        color: color || 'inherit', transition: '0.2s' 
-    }} className="icon-hover">
-        {children}
-    </div>
-);
-
+// --- ICONS COMPONENT (Inline SVGs) ---
 const Icons = {
-  Image: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>,
-  Audio: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>,
-  Video: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>,
-  Plus: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
-  Trash: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
-  Info: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>,
-  Send: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
-  Users: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+  Image: () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+  ),
+  Audio: () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+  ),
+  Video: () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+  )
 };
 
-// --- GLOBAL CSS ---
-const GlobalStyles = () => (
-    <style>{`
-        body { margin: 0; font-family: 'Inter', system-ui, sans-serif; background: ${THEME.bgApp}; color: ${THEME.textMain}; }
-        * { box-sizing: border-box; outline: none; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
-        .icon-hover:hover { opacity: 0.8; transform: scale(1.1); }
-        button:active { transform: translateY(1px); }
-        .fade-in { animation: fadeIn 0.3s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
-    `}</style>
-);
-
-// --- UI COMPONENTS ---
-
-const Avatar = ({ src, alt, size = 40, onClick, style }) => {
-  const bg = src ? 'transparent' : getAvatarColor(alt);
-  return (
-    <div onClick={onClick} style={{ 
-        width: size, height: size, borderRadius: '50%', overflow: 'hidden', 
-        background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', 
-        flexShrink: 0, cursor: onClick ? 'pointer' : 'default', 
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)', border: '2px solid white', ...style 
-    }}>
-      {src ? <img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> 
-           : <span style={{ fontSize: size/2.2, color: 'white', fontWeight: 'bold' }}>{alt?.[0]?.toUpperCase()}</span>}
-    </div>
-  );
-};
-
-const Button = ({ children, onClick, variant = 'primary', style, disabled }) => {
-    const baseStyle = {
-        padding: '10px 16px', borderRadius: '8px', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
-        fontSize: '0.9rem', fontWeight: '600', transition: '0.2s', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center',
-        opacity: disabled ? 0.6 : 1, ...style
-    };
-    const variants = {
-        primary: { background: THEME.primary, color: 'white' },
-        secondary: { background: 'white', color: THEME.textMain, border: `1px solid ${THEME.border}` },
-        danger: { background: THEME.danger, color: 'white' },
-        ghost: { background: 'transparent', color: THEME.textMuted }
-    };
-    return (
-        <button onClick={onClick} disabled={disabled} style={{ ...baseStyle, ...variants[variant] }}>
-            {children}
-        </button>
-    );
-};
-
-const Input = (props) => (
-    <input {...props} style={{
-        width: '100%', padding: '12px', borderRadius: '8px', border: `1px solid ${THEME.border}`,
-        fontSize: '0.95rem', background: 'white', transition: '0.2s', color: THEME.textMain, ...props.style
-    }} />
-);
-
-const Modal = ({ children, onClose, title }) => (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', backdropFilter:'blur(2px)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000 }}>
-        <div className="fade-in" style={{ background:'white', padding:'24px', borderRadius:'16px', width:'400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <h3 style={{ margin: 0 }}>{title}</h3>
-                <button onClick={onClose} style={{ border:'none', background:'none', fontSize:'1.5rem', cursor:'pointer' }}>&times;</button>
-            </div>
-            {children}
-        </div>
-    </div>
-);
-
-// --- APP COMPONENT ---
-
+// --- MAIN APP COMPONENT ---
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
-  const [view, setView] = useState('chat'); 
+  const [view, setView] = useState('chat'); // 'chat' or 'admin'
 
   useEffect(() => {
-    if (token) {
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            setUser({ 
-                id: payload.id, username: payload.username, role: payload.role,
-                avatar: localStorage.getItem('avatar'), nickname: localStorage.getItem('nickname')
-            });
-        } catch(e) { logout(); }
-    }
-  }, [token]);
+    const storedUser = localStorage.getItem('username');
+    const storedId = localStorage.getItem('userId');
+    const storedRole = localStorage.getItem('role');
 
-  const logout = () => { localStorage.clear(); setToken(null); setUser(null); setView('chat'); };
+    if (storedUser && storedId) {
+        setUser({ id: storedId, username: storedUser, role: storedRole });
+    }
+  }, []);
+
+  const logout = () => {
+    localStorage.clear();
+    setToken(null);
+    setUser(null);
+    setView('chat');
+  };
 
   if (!token) return <Auth setToken={setToken} setUser={setUser} />;
   
@@ -157,311 +55,620 @@ function App() {
   }
   
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <GlobalStyles />
-      {/* Navbar */}
-      <header style={{ 
-          background: 'white', borderBottom: `1px solid ${THEME.border}`, 
-          padding: '0 20px', height: '60px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-      }}>
-        <div onClick={() => setView('profile')} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor:'pointer' }}>
-            <Avatar src={user?.avatar} alt={user?.username} size={32} />
-            <div>
-                <div style={{ fontWeight: '700', fontSize: '0.9rem' }}>{user?.nickname || user?.username}</div>
-            </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'Arial, sans-serif' }}>
+      {/* Header */}
+      <div style={{ background: '#333', color: '#fff', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0 }}>Chat App {user?.role === 'admin' && <span style={{fontSize:'0.6em', background:'red', padding:'2px 5px', borderRadius:'4px', verticalAlign:'middle'}}>ADMIN</span>}</h2>
+        <div style={{ display: 'flex', gap: '10px' }}>
+            {user?.role === 'admin' && (
+                <button 
+                    onClick={() => setView(view === 'chat' ? 'admin' : 'chat')}
+                    style={{ background: view === 'admin' ? '#555' : '#007bff', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}
+                >
+                    {view === 'chat' ? 'Admin Panel' : 'Back to Chat'}
+                </button>
+            )}
+            <button onClick={logout} style={{ background: '#dc3545', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}>Logout</button>
         </div>
-        <div style={{ display: 'flex', gap: '5px' }}>
-            <Button variant={view==='chat'?'primary':'ghost'} onClick={()=>setView('chat')}>Chat</Button>
-            <Button variant={view==='profile'?'primary':'ghost'} onClick={()=>setView('profile')}>Profile</Button>
-            {user?.role === 'admin' && <Button variant={view==='admin'?'primary':'ghost'} onClick={()=>setView('admin')}>Admin</Button>}
-            <Button variant="ghost" onClick={logout} style={{color: THEME.danger}}>Exit</Button>
-        </div>
-      </header>
+      </div>
 
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', background: THEME.bgApp }}>
-        {view === 'chat' && <ChatDashboard token={token} currentUser={user} onEditProfile={() => setView('profile')} />}
-        {view === 'profile' && <ProfileSettings token={token} currentUser={user} setUser={setUser} />}
-        {view === 'admin' && <AdminDashboard token={token} />}
+      {/* Main Content */}
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        {view === 'admin' && user?.role === 'admin' ? (
+            <AdminDashboard token={token} />
+        ) : (
+            <ChatDashboard token={token} myId={user?.id} myUsername={user?.username} />
+        )}
       </div>
     </div>
   );
 }
 
-// --- AUTH ---
+// --- AUTH COMPONENT ---
 function Auth({ setToken, setUser }) {
   const [isRegister, setIsRegister] = useState(false);
-  const [formData, setFormData] = useState({ username: '', password: '' });
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const endpoint = isRegister ? '/register' : '/login';
     try {
-      const { data } = await axios.post(`${API_URL}/api/${isRegister ? 'register' : 'login'}`, formData);
+      const { data } = await axios.post(`${API_URL}${endpoint}`, { username, password });
       if (!isRegister) {
         localStorage.setItem('token', data.token);
-        localStorage.setItem('avatar', data.avatar || '');
-        localStorage.setItem('nickname', data.nickname || '');
+        localStorage.setItem('userId', data.userId);
+        localStorage.setItem('username', data.username);
+        localStorage.setItem('role', data.role);
         setToken(data.token);
-      } else { setIsRegister(false); alert('Created! Please login.'); }
-    } catch (err) { 
-      const errorMsg = err.response?.data?.error;
-      if (typeof errorMsg === 'string') {
-        alert(errorMsg);
-      } else if (errorMsg) {
-        alert(JSON.stringify(errorMsg));
+        setUser({ id: data.userId, username: data.username, role: data.role });
       } else {
-        alert(err.message || 'An error occurred');
+        alert('Registration successful! Please login.');
+        setIsRegister(false);
       }
+    } catch (err) {
+      alert(err.response?.data?.error || 'An error occurred');
     }
   };
 
   return (
-    <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: THEME.bgApp }}>
-      <GlobalStyles />
-      <div className="fade-in" style={{ background: 'white', padding: '40px', borderRadius: '12px', width: '350px', boxShadow:'0 10px 20px rgba(0,0,0,0.05)' }}>
-        <h2 style={{ textAlign: 'center', color: THEME.primary }}>{isRegister ? 'Join Chat' : 'Welcome'}</h2>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <Input placeholder="Username" onChange={e => setFormData({...formData, username: e.target.value})} required />
-            <Input type="password" placeholder="Password" onChange={e => setFormData({...formData, password: e.target.value})} required />
-            <Button type="submit">{isRegister ? 'Sign Up' : 'Login'}</Button>
+    <div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'100vh', flexDirection:'column', background: '#f0f2f5' }}>
+      <div style={{ background: 'white', padding: '40px', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>{isRegister ? 'Register' : 'Login'}</h2>
+        <p style={{fontSize: '0.8em', color: '#666', textAlign: 'center', marginBottom: '20px'}}>Tip: Username starting with <b>"admin"</b> gets Admin Role.</p>
+        <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:'15px', width:'300px' }}>
+          <input style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }} placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} required />
+          <input style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }} type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
+          <button style={{ padding: '10px', borderRadius: '5px', border: 'none', background: '#007bff', color: 'white', fontWeight: 'bold', cursor: 'pointer' }} type="submit">{isRegister ? 'Register' : 'Login'}</button>
         </form>
-        <p style={{ textAlign: 'center', fontSize: '0.9rem', color: THEME.textMuted, cursor:'pointer' }} onClick={() => setIsRegister(!isRegister)}>
-            {isRegister ? 'Already have an account?' : "Don't have an account?"}
-        </p>
+        <div style={{ textAlign: 'center', marginTop: '15px' }}>
+            <button style={{background:'transparent', color:'#007bff', border:'none', textDecoration:'underline', cursor: 'pointer'}} onClick={() => setIsRegister(!isRegister)}>
+                Switch to {isRegister ? 'Login' : 'Register'}
+            </button>
+        </div>
       </div>
     </div>
   );
 }
 
-// --- PROFILE ---
-function ProfileSettings({ token, currentUser, setUser }) {
-    const [nickname, setNickname] = useState(currentUser?.nickname || '');
-    const [isVisible, setIsVisible] = useState(true);
-    const [avatarFile, setAvatarFile] = useState(null);
+// --- ADMIN DASHBOARD ---
+function AdminDashboard({ token }) {
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    const handleSave = async () => {
+    useEffect(() => {
+        setLoading(true);
+        axios.get(`${API_URL}/admin/users`, {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+        .then(res => setUsers(res.data))
+        .catch(err => alert("Failed to fetch users"))
+        .finally(() => setLoading(false));
+    }, [token]);
+
+    const deleteUser = async (id) => {
+        if(!window.confirm("Are you sure? This will delete the user and their messages.")) return;
         try {
-            const { data } = await axios.put(`${API_URL}/api/profile`, { token, nickname, isVisible });
-            localStorage.setItem('nickname', data.nickname);
-            if (avatarFile) {
-                const fd = new FormData(); fd.append('file', avatarFile); fd.append('token', token);
-                const res = await axios.post(`${API_URL}/api/profile/avatar`, fd);
-                localStorage.setItem('avatar', res.data.fileUrl);
-                data.avatar = res.data.fileUrl;
-            }
-            setUser(prev => ({ ...prev, ...data }));
-            alert('Saved!');
-        } catch (e) { 
-            const errorMsg = e.response?.data?.error || e.message || 'Failed to save profile';
-            alert(errorMsg);
-            console.error('Profile save error:', e);
+            await axios.delete(`${API_URL}/admin/users/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setUsers(users.filter(u => u._id !== id));
+        } catch (err) {
+            alert("Error deleting user");
         }
     };
 
     return (
-        <div className="fade-in" style={{ padding: '40px', maxWidth: '500px', margin: '40px auto', background: 'white', borderRadius: '12px', boxShadow:'0 4px 6px rgba(0,0,0,0.05)' }}>
-            <h2>Your Profile</h2>
-            <div style={{ marginBottom: '20px', display:'flex', gap:'20px', alignItems:'center' }}>
-                <Avatar src={avatarFile ? URL.createObjectURL(avatarFile) : currentUser?.avatar} size={80} />
-                <div>
-                    <input type="file" id="up" hidden onChange={e => setAvatarFile(e.target.files[0])} />
-                    <Button variant="secondary" onClick={()=>document.getElementById('up').click()}>Upload Photo</Button>
-                </div>
-            </div>
-            <label style={{display:'block', marginBottom:'5px', fontWeight:'bold'}}>Display Name</label>
-            <Input value={nickname} onChange={e => setNickname(e.target.value)} style={{marginBottom:'20px'}} />
-            
-            <label style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'30px'}}>
-                <input type="checkbox" checked={isVisible} onChange={e => setIsVisible(e.target.checked)} /> Public Profile
-            </label>
-            <Button onClick={handleSave}>Save Changes</Button>
+        <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto' }}>
+            <h1>User Management</h1>
+            {loading ? <p>Loading...</p> : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                    <thead>
+                        <tr style={{ background: '#f4f4f4', textAlign: 'left' }}>
+                            <th style={{ padding: '15px', borderBottom: '2px solid #ddd' }}>Username</th>
+                            <th style={{ padding: '15px', borderBottom: '2px solid #ddd' }}>Role</th>
+                            <th style={{ padding: '15px', borderBottom: '2px solid #ddd' }}>Created At</th>
+                            <th style={{ padding: '15px', borderBottom: '2px solid #ddd' }}>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {users.map(u => (
+                            <tr key={u._id} style={{ borderBottom: '1px solid #eee' }}>
+                                <td style={{ padding: '15px' }}>{u.username}</td>
+                                <td style={{ padding: '15px' }}>
+                                    <span style={{ 
+                                        padding: '4px 8px', 
+                                        borderRadius: '4px', 
+                                        background: u.role === 'admin' ? '#d4edda' : '#e2e3e5',
+                                        color: u.role === 'admin' ? '#155724' : '#383d41',
+                                        fontSize: '0.85em',
+                                        fontWeight: 'bold'
+                                    }}>
+                                        {u.role.toUpperCase()}
+                                    </span>
+                                </td>
+                                <td style={{ padding: '15px', fontSize: '0.9em', color: '#666' }}>
+                                    {new Date(u.createdAt).toLocaleDateString()}
+                                </td>
+                                <td style={{ padding: '15px' }}>
+                                    {u.role !== 'admin' && (
+                                        <button 
+                                            onClick={() => deleteUser(u._id)}
+                                            style={{ background: '#ff4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '5px 10px' }}
+                                        >
+                                            Delete
+                                        </button>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
         </div>
     );
 }
 
-// --- CHAT DASHBOARD ---
-function ChatDashboard({ token, currentUser, onEditProfile }) {
-  const [friends, setFriends] = useState([]);
-  const [requests, setRequests] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
-  const [groups, setGroups] = useState([]);
-  
-  const [target, setTarget] = useState(null); 
+// --- CHAT DASHBOARD (Messaging, Calls, File Share) ---
+function ChatDashboard({ token, myId, myUsername }) {
+  // Chat State
+  const [users, setUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  
-  const [showCreateGroup, setShowCreateGroup] = useState(false);
-  const [showGroupDetails, setShowGroupDetails] = useState(false);
-  const [previewUser, setPreviewUser] = useState(null);
-  
-  const messagesEndRef = useRef(null);
-  const targetRef = useRef(target);
-  useEffect(() => { targetRef.current = target; }, [target]);
+  const eventSourceRef = useRef(null);
 
-  const fetchData = () => {
-      axios.get(`${API_URL}/api/my-network`, { headers: { Authorization: `Bearer ${token}` } }).then(res => { setFriends(res.data.friends || []); setRequests(res.data.requests || []); });
-      axios.get(`${API_URL}/api/groups`, { headers: { Authorization: `Bearer ${token}` } }).then(res => setGroups(res.data || []));
-      axios.get(`${API_URL}/api/users`).then(res => setAllUsers(res.data.filter(u => u._id !== currentUser.id)));
+  // Call State
+  const [callActive, setCallActive] = useState(false);
+  const [receivingCall, setReceivingCall] = useState(false);
+  const [caller, setCaller] = useState(null);
+  const [callerSignal, setCallerSignal] = useState(null);
+  const [callStatus, setCallStatus] = useState('');
+  
+  // Refs
+  const myVideo = useRef();
+  const userVideo = useRef();
+  const connectionRef = useRef();
+  const messagesEndRef = useRef(null); // For auto-scrolling
+  const callPollIntervalRef = useRef(null);
+
+  const peerConstraints = {
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
   };
 
+  // Helper function to cleanup call state
+  const endCallCleanup = () => {
+    setCallActive(false);
+    setReceivingCall(false);
+    setCallStatus('');
+    setCaller(null);
+    if (connectionRef.current) {
+      connectionRef.current.close();
+      connectionRef.current = null;
+    }
+  };
+
+  // --- SERVER-SENT EVENTS (SSE) CONNECTION ---
   useEffect(() => {
-    fetchData();
-    const es = new EventSource(`${API_URL}/api/events?token=${token}`);
-    es.onmessage = (e) => {
-        const { type, data } = JSON.parse(e.data);
-        if (type === 'receive_message') {
-             setMessages(prev => {
-                const ct = targetRef.current;
-                const isRelevant = (ct?.type === 'user' && !data.groupId && (data.sender._id === ct.data._id || data.sender._id === currentUser.id)) ||
-                                   (ct?.type === 'group' && data.groupId === ct.data._id);
-                return isRelevant ? [...prev, data] : prev;
-            });
-        } else if (['group_created', 'friend_accepted', 'friend_request', 'group_deleted'].includes(type)) {
-            fetchData();
-            if(type === 'group_deleted' && targetRef.current?.data._id === data.groupId) setTarget(null);
+    if (!token) return;
+
+    // Connect to SSE endpoint with token as query parameter
+    // (EventSource doesn't support custom headers, so we'll use query param)
+    const eventSource = new EventSource(`${API_URL}/events?token=${encodeURIComponent(token)}`);
+
+    eventSourceRef.current = eventSource;
+
+    // Handle incoming messages
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'receive_message') {
+          setMessages((prev) => [...prev, data.message]);
+        } else if (data.type === 'call_user') {
+          setReceivingCall(true);
+          setCaller(data.from);
+          setCallerSignal(data.signal);
+          setCallStatus(`${data.name} is calling...`);
+        } else if (data.type === 'call_accepted') {
+          setCallStatus('Call Connected');
+          if (connectionRef.current) {
+            connectionRef.current.setRemoteDescription(new RTCSessionDescription(data.signal));
+          }
+        } else if (data.type === 'ice_candidate') {
+          if (connectionRef.current) {
+            connectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+          }
+        } else if (data.type === 'end_call') {
+          endCallCleanup();
         }
+      } catch (err) {
+        console.error('Error parsing SSE message:', err);
+      }
     };
-    return () => es.close();
-  }, [token, currentUser]);
+
+    eventSource.onerror = (err) => {
+      console.error('SSE connection error:', err);
+      // Reconnect after 3 seconds
+      setTimeout(() => {
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+        }
+        // Reconnect will happen automatically via useEffect
+      }, 3000);
+    };
+
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+      if (callPollIntervalRef.current) {
+        clearInterval(callPollIntervalRef.current);
+      }
+    };
+  }, [token]);
+
+  // Poll for call signals (backup method if SSE doesn't work for calls)
+  useEffect(() => {
+    if (!token) return;
+
+    const pollCalls = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/calls/poll`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        const signals = response.data;
+        signals.forEach(signal => {
+          if (signal.type === 'call_user') {
+            setReceivingCall(true);
+            setCaller(signal.data.from);
+            setCallerSignal(signal.data.signal);
+            setCallStatus(`${signal.data.name} is calling...`);
+          } else if (signal.type === 'call_accepted') {
+            setCallStatus('Call Connected');
+            if (connectionRef.current) {
+              connectionRef.current.setRemoteDescription(new RTCSessionDescription(signal.data));
+            }
+          } else if (signal.type === 'ice_candidate') {
+            if (connectionRef.current) {
+              connectionRef.current.addIceCandidate(new RTCIceCandidate(signal.data));
+            }
+          } else if (signal.type === 'end_call') {
+            endCallCleanup();
+          }
+        });
+      } catch (err) {
+        console.error('Error polling calls:', err);
+      }
+    };
+
+    // Poll every 2 seconds
+    callPollIntervalRef.current = setInterval(pollCalls, 2000);
+
+    return () => {
+      if (callPollIntervalRef.current) {
+        clearInterval(callPollIntervalRef.current);
+      }
+    };
+  }, [token]);
+
+  // --- DATA FETCHING ---
+  useEffect(() => {
+    axios.get(`${API_URL}/users`).then(res => setUsers(res.data.filter(u => u._id !== myId)));
+  }, [myId]);
 
   useEffect(() => {
-    if (!target) return;
-    const url = target.type === 'user' ? `${API_URL}/api/messages/${currentUser.id}/${target.data._id}` : `${API_URL}/api/groups/${target.data._id}/messages`;
-    axios.get(url).then(res => setMessages(res.data));
-  }, [target]);
+    if (selectedUser) {
+      axios.get(`${API_URL}/messages/${myId}/${selectedUser._id}`).then(res => setMessages(res.data));
+    }
+  }, [selectedUser, myId]);
 
-  useEffect(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), [messages]);
+  // Auto scroll to bottom of chat
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, selectedUser]);
+
+  // --- MESSAGE LOGIC ---
+  const currentMessages = messages.filter(msg => 
+    (selectedUser && msg.sender === selectedUser._id && msg.recipient === myId) ||
+    (selectedUser && msg.sender === myId && msg.recipient === selectedUser._id)
+  );
 
   const sendMessage = async (e) => {
     e.preventDefault();
-    if (!input.trim() || !target) return;
-    await axios.post(`${API_URL}/api/message`, { token, content: input, type: 'text', recipientId: target.type==='user'?target.data._id:null, groupId: target.type==='group'?target.data._id:null });
-    setInput('');
+    if (input.trim() && selectedUser) {
+      try {
+        const response = await axios.post(`${API_URL}/messages/send`, {
+          recipientId: selectedUser._id,
+          content: input,
+          type: 'text'
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setInput('');
+        // Message will be received via SSE, but we can also add it optimistically
+        // The SSE handler will add it to the messages array
+      } catch (err) {
+        console.error('Failed to send message:', err);
+        const errorMsg = err.response?.data?.error || err.message || 'Failed to send message';
+        alert(errorMsg);
+      }
+    }
   };
 
-  const addFriend = async (id) => { try { await axios.post(`${API_URL}/api/friends/request`, { token, toUserId: id }); alert('Sent!'); } catch(e) { alert(e.response?.data?.msg); } };
-  const acceptFriend = async (id) => { await axios.post(`${API_URL}/api/friends/accept`, { token, fromUserId: id }); fetchData(); };
-  const deleteGroup = async (gid) => { if(confirm("Delete Group?")) { await axios.delete(`${API_URL}/api/groups/${gid}`, { headers: { Authorization: `Bearer ${token}` } }); setShowGroupDetails(false); setTarget(null); }};
-  
-  const handleAvatarClick = (e, user, isGroup) => { e.stopPropagation(); isGroup ? (setTarget({ type: 'group', data: user }), setShowGroupDetails(true)) : (user._id === currentUser.id ? onEditProfile() : setPreviewUser(user)); };
-  const communityUsers = allUsers.filter(u => !friends.some(f => f._id === u._id) && !requests.some(r => r._id === u._id));
+  // --- FILE UPLOAD LOGIC ---
+  const handleFileUpload = async (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Optional: Check size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) return alert("File too large (Max 10MB)");
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await axios.post(`${API_URL}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const { fileUrl } = res.data;
+
+      if (selectedUser) {
+        try {
+          await axios.post(`${API_URL}/messages/send`, {
+            recipientId: selectedUser._id,
+            content: file.name,
+            type: type, // 'image', 'audio', 'video'
+            fileUrl: fileUrl
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } catch (err) {
+          console.error('Failed to send file message:', err);
+          alert('Failed to send file');
+        }
+      }
+    } catch (err) {
+      console.error("Upload failed", err);
+      alert("Failed to upload file");
+    }
+  };
+
+  // --- CALL LOGIC ---
+  const callUser = () => {
+    if (!selectedUser) return;
+    setCallActive(true);
+    setCallStatus(`Calling ${selectedUser.username}...`);
+
+    navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then((stream) => {
+      const peer = new RTCPeerConnection(peerConstraints);
+      stream.getTracks().forEach(track => peer.addTrack(track, stream));
+
+      peer.onicecandidate = (event) => {
+        if (event.candidate) {
+          axios.post(`${API_URL}/calls/ice-candidate`, {
+            to: selectedUser._id,
+            candidate: event.candidate
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          }).catch(err => console.error('Failed to send ICE candidate:', err));
+        }
+      };
+
+      peer.ontrack = (event) => {
+        userVideo.current.srcObject = event.streams[0];
+      };
+
+      connectionRef.current = peer;
+
+      peer.createOffer().then((offer) => {
+        peer.setLocalDescription(offer);
+        axios.post(`${API_URL}/calls/initiate`, {
+          userToCall: selectedUser._id,
+          signalData: offer,
+          fromId: myId,
+          fromUsername: myUsername
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(err => {
+          console.error('Failed to initiate call:', err);
+          alert('Failed to initiate call');
+        });
+      });
+    });
+  };
+
+  const answerCall = () => {
+    setCallActive(true);
+    setReceivingCall(false);
+    setCallStatus('Call Connected');
+
+    navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then((stream) => {
+      const peer = new RTCPeerConnection(peerConstraints);
+      stream.getTracks().forEach(track => peer.addTrack(track, stream));
+
+      peer.onicecandidate = (event) => {
+        if (event.candidate) {
+          axios.post(`${API_URL}/calls/ice-candidate`, {
+            to: caller,
+            candidate: event.candidate
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          }).catch(err => console.error('Failed to send ICE candidate:', err));
+        }
+      };
+
+      peer.ontrack = (event) => {
+        userVideo.current.srcObject = event.streams[0];
+      };
+
+      connectionRef.current = peer;
+
+      peer.setRemoteDescription(new RTCSessionDescription(callerSignal));
+      peer.createAnswer().then((answer) => {
+        peer.setLocalDescription(answer);
+        axios.post(`${API_URL}/calls/answer`, {
+          signal: answer,
+          to: caller
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(err => {
+          console.error('Failed to answer call:', err);
+          alert('Failed to answer call');
+        });
+      });
+    });
+  };
+
+  const leaveCall = () => {
+    const otherId = selectedUser?._id || caller;
+    if (otherId) {
+      axios.post(`${API_URL}/calls/end`, {
+        to: otherId
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).catch(err => console.error('Failed to end call:', err));
+    }
+    endCallCleanup();
+    // Note: To properly stop the mic, we would need to store the stream in a ref and call stream.getTracks().forEach(t => t.stop())
+  };
+
+  const renderMessageContent = (msg) => {
+    switch(msg.type) {
+        case 'image':
+            return <img src={msg.fileUrl} alt="sent" style={{ maxWidth: '200px', borderRadius: '8px', cursor:'pointer' }} onClick={()=>window.open(msg.fileUrl, '_blank')} />;
+        case 'audio':
+            return <audio controls src={msg.fileUrl} style={{ width: '200px' }} />;
+        case 'video':
+            return <video controls src={msg.fileUrl} style={{ maxWidth: '200px', borderRadius: '8px' }} />;
+        default:
+            return <span>{msg.content}</span>;
+    }
+  };
 
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
-      {/* SIDEBAR */}
-      <div style={{ width: '280px', background: 'white', borderRight: `1px solid ${THEME.border}`, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '15px', borderBottom: `1px solid ${THEME.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h4 style={{margin:0, color: THEME.textMain}}>Messages</h4>
-            <IconWrapper onClick={() => setShowCreateGroup(true)} color={THEME.primary}><Icons.Users/></IconWrapper>
-        </div>
-        
+    <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+      {/* Invisible Audio Elements for WebRTC */}
+      <audio ref={myVideo} muted />
+      <audio ref={userVideo} autoPlay />
+
+      {/* Sidebar (User List) */}
+      <div style={{ width: '260px', borderRight: '1px solid #ddd', background:'#f8f9fa', display:'flex', flexDirection:'column' }}>
+        <h3 style={{ padding: '20px', margin: 0, borderBottom: '1px solid #ddd' }}>Contacts</h3>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-            {requests.length > 0 && requests.map(req => (
-                <div key={req._id} style={{padding:'10px', background:'#FEF3C7', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                    <div style={{display:'flex', gap:'8px', alignItems:'center'}}><Avatar src={req.avatar} alt={req.username} size={28} onClick={(e)=>handleAvatarClick(e,req)}/> {req.username}</div>
-                    <Button variant="success" style={{padding:'4px 8px', fontSize:'0.7rem', background:THEME.success}} onClick={()=>acceptFriend(req._id)}>Accept</Button>
-                </div>
-            ))}
-            
-            {groups.map(g => <ContactItem key={g._id} icon={g.avatar} name={g.name} active={target?.data._id === g._id} onClick={() => setTarget({type: 'group', data: g})} onAvatarClick={(e)=>handleAvatarClick(e, g, true)} isGroup />)}
-            {friends.map(f => <ContactItem key={f._id} icon={f.avatar} name={f.nickname || f.username} active={target?.data._id === f._id} onClick={() => setTarget({type: 'user', data: f})} onAvatarClick={(e)=>handleAvatarClick(e, f)} />)}
-            
-            {communityUsers.length > 0 && <div style={{padding:'10px 15px', fontSize:'0.75rem', fontWeight:'bold', color:THEME.textMuted, marginTop:'10px'}}>SUGGESTIONS</div>}
-            {communityUsers.map(u => (
-                <div key={u._id} style={{padding:'8px 15px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                    <div style={{display:'flex', gap:'10px', alignItems:'center'}}><Avatar src={u.avatar} alt={u.username} size={30} onClick={(e)=>handleAvatarClick(e,u)}/> {u.username}</div>
-                    <IconWrapper onClick={()=>addFriend(u._id)} color={THEME.primary}><Icons.Plus/></IconWrapper>
-                </div>
-            ))}
+          {users.map(u => (
+            <div 
+              key={u._id} 
+              onClick={() => setSelectedUser(u)}
+              style={{ 
+                padding: '15px 20px', 
+                cursor: 'pointer',
+                background: selectedUser?._id === u._id ? '#e9ecef' : 'transparent',
+                borderBottom: '1px solid #eee',
+                fontWeight: selectedUser?._id === u._id ? 'bold' : 'normal'
+              }}
+            >
+              {u.username}
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* CHAT AREA */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: THEME.bgApp }}>
-        {target ? (
-            <>
-                <div style={{ padding: '12px 20px', background: 'white', borderBottom: `1px solid ${THEME.border}`, display: 'flex', justifyContent:'space-between', alignItems:'center' }}>
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        <Avatar src={target.data.avatar} alt={target.data.name} size={40} onClick={(e) => handleAvatarClick(e, target.data, target.type === 'group')} />
-                        <div>
-                            <div style={{fontWeight:'700', fontSize:'1rem'}}>{target.data.name || target.data.nickname || target.data.username}</div>
-                            {target.type === 'group' && <div style={{fontSize:'0.75rem', color:THEME.textMuted}}>Group Chat</div>}
-                        </div>
-                    </div>
-                    {target.type === 'group' && <IconWrapper onClick={()=>setShowGroupDetails(true)}><Icons.Info/></IconWrapper>}
-                </div>
-                
-                <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-                    {messages.map((msg, i) => {
-                        const isMe = msg.sender._id === currentUser.id;
-                        return (
-                            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', marginBottom: '15px' }}>
-                                <div style={{ display: 'flex', gap: '10px', flexDirection: isMe ? 'row-reverse' : 'row', maxWidth: '75%' }}>
-                                    {!isMe && <Avatar src={msg.sender.avatar} alt={msg.sender.username} size={32} onClick={(e) => handleAvatarClick(e, msg.sender)} />}
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                                        {target.type === 'group' && !isMe && <span style={{fontSize:'0.7rem', color:THEME.textMuted, marginLeft:'4px'}}>{msg.sender.nickname}</span>}
-                                        <div style={{ 
-                                            background: isMe ? THEME.msgMe : THEME.msgOther, color: isMe ? 'white' : THEME.textMain,
-                                            padding: '10px 15px', borderRadius: isMe ? '15px 15px 2px 15px' : '15px 15px 15px 2px',
-                                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)', fontSize: '0.95rem', border: isMe ? 'none' : `1px solid ${THEME.border}`
-                                        }}>
-                                            {msg.content}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                    <div ref={messagesEndRef} />
-                </div>
-
-                <div style={{ padding: '15px', background: 'white', borderTop: `1px solid ${THEME.border}` }}>
-                    <form onSubmit={sendMessage} style={{ display: 'flex', gap: '10px' }}>
-                        <div style={{display:'flex', gap:'8px', color:THEME.textMuted, alignItems:'center'}}><Icons.Image/><Icons.Audio/></div>
-                        <Input value={input} onChange={e => setInput(e.target.value)} placeholder="Type a message..." style={{border:'none', background:THEME.bgApp}} />
-                        <Button type="submit" style={{borderRadius:'50%', width:'40px', height:'40px', padding:0}}><Icons.Send/></Button>
-                    </form>
-                </div>
-            </>
-        ) : (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: THEME.textMuted }}>
-                <div style={{background:'white', padding:'25px', borderRadius:'50%', marginBottom:'15px', boxShadow:'0 4px 10px rgba(0,0,0,0.05)'}}><Icons.Users/></div>
-                <h3>Start a conversation</h3>
+      {/* Chat Area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'white' }}>
+        
+        {/* Call Banner */}
+        {(callActive || receivingCall) && (
+          <div style={{ background: '#333', color: '#fff', padding: '10px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:'0 2px 5px rgba(0,0,0,0.2)' }}>
+            <span style={{ fontWeight: 'bold' }}>📞 {callStatus}</span>
+            <div>
+              {receivingCall && !callActive && (
+                <button onClick={answerCall} style={{ background: '#28a745', color:'white', border:'none', padding:'8px 16px', borderRadius:'4px', marginRight: '10px', cursor:'pointer' }}>Answer</button>
+              )}
+              <button onClick={leaveCall} style={{ background: '#dc3545', color:'white', border:'none', padding:'8px 16px', borderRadius:'4px', cursor:'pointer' }}>End Call</button>
             </div>
+          </div>
+        )}
+
+        {selectedUser ? (
+          <>
+            {/* Chat Header */}
+            <div style={{ padding: '15px 20px', borderBottom:'1px solid #ddd', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#fff' }}>
+                <h3 style={{ margin: 0 }}>{selectedUser.username}</h3>
+                {!callActive && !receivingCall && (
+                  <button onClick={callUser} style={{ background: 'transparent', border:'1px solid #007bff', color:'#007bff', padding:'6px 12px', borderRadius:'20px', cursor:'pointer', display:'flex', alignItems:'center', gap:'5px' }}>
+                     📞 Call
+                  </button>
+                )}
+            </div>
+            
+            {/* Messages */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', background: '#f0f2f5' }}>
+              {currentMessages.length === 0 && <div style={{textAlign:'center', color:'#888', marginTop:'20px'}}>No messages yet. Say hi!</div>}
+              {currentMessages.map((msg, index) => (
+                <div key={index} style={{ textAlign: msg.sender === myId ? 'right' : 'left', marginBottom: '15px' }}>
+                  <div style={{ 
+                    display: 'inline-block',
+                    background: msg.sender === myId ? '#007bff' : '#fff', 
+                    color: msg.sender === myId ? '#fff' : '#000',
+                    padding: '10px 15px', 
+                    borderRadius: '18px', 
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                    maxWidth: '70%',
+                    textAlign: 'left'
+                  }}>
+                    {renderMessageContent(msg)}
+                  </div>
+                  <div style={{ fontSize:'0.75em', color:'#999', marginTop:'4px', padding:'0 5px' }}>
+                    {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input Area */}
+            <div style={{ padding: '15px', borderTop:'1px solid #ddd', background:'white' }}>
+               {/* Media Toolbar */}
+               <div style={{ display: 'flex', gap: '15px', paddingBottom: '10px', marginLeft:'5px' }}>
+                <label style={{ cursor: 'pointer', color: '#666', display:'flex', alignItems:'center' }} title="Send Image">
+                  <Icons.Image />
+                  <input type="file" accept="image/*" hidden onChange={(e) => handleFileUpload(e, 'image')} />
+                </label>
+                <label style={{ cursor: 'pointer', color: '#666', display:'flex', alignItems:'center' }} title="Send Audio">
+                  <Icons.Audio />
+                  <input type="file" accept="audio/*" hidden onChange={(e) => handleFileUpload(e, 'audio')} />
+                </label>
+                <label style={{ cursor: 'pointer', color: '#666', display:'flex', alignItems:'center' }} title="Send Video">
+                  <Icons.Video />
+                  <input type="file" accept="video/*" hidden onChange={(e) => handleFileUpload(e, 'video')} />
+                </label>
+              </div>
+
+              {/* Text Input Form */}
+              <form onSubmit={sendMessage} style={{ display: 'flex', gap:'10px' }}>
+                <input 
+                  value={input} 
+                  onChange={e => setInput(e.target.value)} 
+                  style={{ flex: 1, padding: '12px', borderRadius:'20px', border:'1px solid #ddd', outline:'none' }} 
+                  placeholder="Type a message..." 
+                />
+                <button type="submit" style={{ padding: '0 20px', borderRadius:'20px', background:'#007bff', color:'white', border:'none', fontWeight:'bold', cursor:'pointer' }}>
+                    Send
+                </button>
+              </form>
+            </div>
+          </>
+        ) : (
+          <div style={{flex:1, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', color:'#888', background:'#f0f2f5'}}>
+             <div style={{ fontSize: '4rem', opacity: 0.2 }}>💬</div>
+             <h3>Select a conversation to start chatting</h3>
+          </div>
         )}
       </div>
-
-      {showCreateGroup && <CreateGroupModal friends={friends} token={token} onClose={() => setShowCreateGroup(false)} />}
-      {showGroupDetails && target?.type === 'group' && <GroupDetailsModal group={target.data} currentUser={currentUser} onDelete={deleteGroup} onClose={()=>setShowGroupDetails(false)} />}
-      {previewUser && <UserProfileModal user={previewUser} onClose={() => setPreviewUser(null)} />}
     </div>
   );
-}
-
-// --- MODALS ---
-function UserProfileModal({ user, onClose }) {
-    return <Modal title="Profile" onClose={onClose}><div style={{textAlign:'center'}}><Avatar src={user.avatar} alt={user.username} size={100} style={{margin:'0 auto 15px'}}/><h2>{user.nickname||user.username}</h2><p>@{user.username}</p></div></Modal>;
-}
-function CreateGroupModal({ friends, token, onClose }) {
-    const [name, setName] = useState(''); const [sel, setSel] = useState([]);
-    const create = async () => { if(!name||sel.length===0) return; await axios.post(`${API_URL}/api/groups`, {token, name, members:sel}); onClose(); };
-    return <Modal title="New Group" onClose={onClose}><Input placeholder="Name" value={name} onChange={e=>setName(e.target.value)} style={{marginBottom:'15px'}}/><div style={{maxHeight:'200px', overflowY:'auto'}}>{friends.map(f=><div key={f._id} onClick={()=>setSel(p=>p.includes(f._id)?p.filter(i=>i!==f._id):[...p,f._id])} style={{padding:'8px', background:sel.includes(f._id)?THEME.activeItem:'white', cursor:'pointer'}}>{f.username}</div>)}</div><Button onClick={create} style={{marginTop:'15px', width:'100%'}}>Create</Button></Modal>;
-}
-function GroupDetailsModal({ group, currentUser, onDelete, onClose }) {
-    const [d, setD] = useState(null); useEffect(()=>{axios.get(`${API_URL}/api/groups/${group._id}/details`).then(r=>setD(r.data))},[group]);
-    return <Modal title="Group" onClose={onClose}>{!d?'Loading...':<><div style={{textAlign:'center', marginBottom:'15px'}}><Avatar src={d.avatar} alt={d.name} size={60} style={{margin:'0 auto'}}/><h3>{d.name}</h3></div><div>Members ({d.members.length})</div><div style={{maxHeight:'150px', overflowY:'auto', margin:'10px 0'}}>{d.members.map(m=><div key={m._id} style={{padding:'5px'}}>{m.username}</div>)}</div>{(d.admin._id===currentUser.id||currentUser.role==='admin')&&<Button variant="danger" onClick={()=>onDelete(group._id)} style={{width:'100%'}}>Delete</Button>}</>}</Modal>;
-}
-
-const ContactItem = ({ icon, name, active, onClick, onAvatarClick, isGroup }) => (
-    <div onClick={onClick} style={{ padding: '12px 20px', cursor: 'pointer', background: active ? THEME.activeItem : 'transparent', borderLeft: active ? `4px solid ${THEME.primary}` : '4px solid transparent', display: 'flex', alignItems: 'center', gap: '12px', transition:'0.2s' }}>
-        <Avatar src={icon} alt={name} size={38} onClick={onAvatarClick} />
-        <div><div style={{ fontWeight: '600', fontSize: '0.9rem', color: active?THEME.primary:THEME.textMain }}>{name}</div>{isGroup && <div style={{ fontSize: '0.75rem', color: THEME.textMuted }}>Group</div>}</div>
-    </div>
-);
-
-function AdminDashboard({ token }) { 
-    const [users, setUsers] = useState([]);
-    useEffect(() => { axios.get(`${API_URL}/api/admin/users`, {headers:{Authorization:`Bearer ${token}`}}).then(res=>setUsers(res.data)); }, [token]);
-    return <div style={{padding:'40px'}}><h2>Admin Dashboard</h2>{users.map(u=><div key={u._id} style={{padding:'10px', borderBottom:'1px solid #ddd'}}>{u.username} ({u.role})</div>)}</div>;
 }
 
 export default App;
