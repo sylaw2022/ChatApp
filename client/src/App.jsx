@@ -441,6 +441,7 @@ function ChatDashboard({ token, myId, myUsername }) {
         
         if (data.type === 'receive_message') {
           const newMessage = data.message || data.data;
+          console.log('📨 Received message via SSE:', newMessage);
           if (newMessage) {
             setMessages((prev) => {
               // Avoid duplicates
@@ -448,9 +449,15 @@ function ChatDashboard({ token, myId, myUsername }) {
                 (m._id === newMessage._id || m.id === newMessage.id) ||
                 (m._id === newMessage.id || m.id === newMessage._id)
               );
-              if (exists) return prev;
+              if (exists) {
+                console.log('⚠️ Duplicate message ignored');
+                return prev;
+              }
+              console.log('✅ Adding new message to list');
               return [...prev, newMessage];
             });
+          } else {
+            console.warn('⚠️ Received message event but message data is missing');
           }
         } else if (data.type === 'call_user') {
           setReceivingCall(true);

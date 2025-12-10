@@ -89,8 +89,24 @@ app.get('/api/events', (req, res) => {
 });
 
 const sendEvent = (uid, type, data) => { 
-    const target = clients[String(uid)];
-    if(target) target.write(`data: ${JSON.stringify({type,data})}\n\n`); 
+    // Try both string and integer formats for the user ID
+    const uidStr = String(uid);
+    const uidInt = typeof uid === 'string' ? parseInt(uid) : uid;
+    const target = clients[uidStr] || clients[String(uidInt)];
+    
+    if (target) {
+        try {
+            target.write(`data: ${JSON.stringify({type, data})}\n\n`);
+            console.log(`✅ Sent ${type} event to user ${uidStr}`);
+        } catch (err) {
+            console.error(`❌ Failed to send event to user ${uidStr}:`, err);
+            // Remove dead connection
+            delete clients[uidStr];
+            delete clients[String(uidInt)];
+        }
+    } else {
+        console.log(`⚠️ No SSE connection found for user ${uidStr} (type: ${type})`);
+    }
 };
 
 // --- CALL SIGNALING STORAGE ---
@@ -456,7 +472,10 @@ app.post('/api/message', async (req, res) => {
                 });
             }
         } else if (recipientIdInt) {
+            // Send to recipient
+            console.log(`📤 Sending message to recipient ${recipientIdInt} from sender ${senderIdInt}`);
             sendEvent(recipientIdInt, 'receive_message', msg);
+            // Also send to sender so they see their own message
             sendEvent(senderIdInt, 'receive_message', msg);
         }
         res.json({success:true, message: msg});
