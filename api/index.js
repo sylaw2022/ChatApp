@@ -91,13 +91,19 @@ app.get('/api/events', (req, res) => {
         });
         res.flushHeaders();
         
-        // Store connection with both string and integer keys for compatibility
+        // Store connection with multiple key formats for maximum compatibility
         clients[userIdStr] = res;
+        clients[String(userId)] = res;
         if (typeof userId === 'number') {
-            clients[String(userId)] = res;
+            clients[userId] = res;
+        }
+        const userIdInt = typeof userId === 'string' ? parseInt(userId) : userId;
+        if (!isNaN(userIdInt)) {
+            clients[userIdInt] = res;
+            clients[String(userIdInt)] = res;
         }
         
-        console.log(`✅ SSE connection established for user ${userIdStr}`);
+        console.log(`✅ SSE connection established for user ${userIdStr} (stored with keys: ${Object.keys(clients).filter(k => clients[k] === res).join(', ')})`);
         
         const keepAlive = setInterval(() => {
             try {
