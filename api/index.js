@@ -474,10 +474,12 @@ app.post('/api/calls/initiate', async (req, res) => {
         const targetId = typeof userToCall === 'string' ? parseInt(userToCall) : userToCall;
         const callerIdInt = typeof callerId === 'string' ? parseInt(callerId) : callerId;
         
+        const isVideo = req.body.isVideo || false;
+        
         // Send call signal via SSE
         sendEvent(targetId, 'call_user', {
             from: callerIdInt,
-            signal: signalData,
+            signal: { ...signalData, isVideo },
             name: fromUsername || 'Someone'
         });
         
@@ -486,7 +488,7 @@ app.post('/api/calls/initiate', async (req, res) => {
             type: 'call_user',
             data: {
                 from: callerIdInt,
-                signal: signalData,
+                signal: { ...signalData, isVideo },
                 name: fromUsername || 'Someone'
             }
         });

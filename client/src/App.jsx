@@ -382,6 +382,8 @@ function ChatDashboard({ token, myId, myUsername }) {
   const [caller, setCaller] = useState(null);
   const [callerSignal, setCallerSignal] = useState(null);
   const [callStatus, setCallStatus] = useState('');
+  const [isVideoCall, setIsVideoCall] = useState(false); // Toggle for video/audio
+  const [localStream, setLocalStream] = useState(null);
   
   // Refs
   const myVideo = useRef();
@@ -400,6 +402,22 @@ function ChatDashboard({ token, myId, myUsername }) {
     setReceivingCall(false);
     setCallStatus('');
     setCaller(null);
+    setIsVideoCall(false);
+    
+    // Stop local stream tracks
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+    }
+    
+    // Clear video/audio elements
+    if (myVideo.current) {
+      myVideo.current.srcObject = null;
+    }
+    if (userVideo.current) {
+      userVideo.current.srcObject = null;
+    }
+    
     if (connectionRef.current) {
       connectionRef.current.close();
       connectionRef.current = null;
@@ -640,12 +658,20 @@ function ChatDashboard({ token, myId, myUsername }) {
   };
 
   // --- CALL LOGIC ---
-  const callUser = () => {
+  const callUser = (videoEnabled = false) => {
     if (!selectedUser) return;
+    setIsVideoCall(videoEnabled);
     setCallActive(true);
     setCallStatus(`Calling ${selectedUser.username}...`);
 
-    navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then((stream) => {
+    navigator.mediaDevices.getUserMedia({ video: videoEnabled, audio: true }).then((stream) => {
+      setLocalStream(stream);
+      
+      // Set local stream to video element if video call
+      if (videoEnabled && myVideo.current) {
+        myVideo.current.srcObject = stream;
+      }
+      
       const peer = new RTCPeerConnection(peerConstraints);
       stream.getTracks().forEach(track => peer.addTrack(track, stream));
 
@@ -660,7 +686,12 @@ function ChatDashboard({ token, myId, myUsername }) {
       };
 
       peer.ontrack = (event) => {
-        userVideo.current.srcObject = event.streams[0];
+        if (videoEnabled && userVideo.current) {
+          userVideo.current.srcObject = event.streams[0];
+        } else if (!videoEnabled && userVideo.current) {
+          // For audio-only, use audio element
+          userVideo.current.srcObject = event.streams[0];
+        }
       };
 
       connectionRef.current = peer;
@@ -672,21 +703,37 @@ function ChatDashboard({ token, myId, myUsername }) {
           userToCall: selectedUser._id || selectedUser.id,
           signalData: offer,
           fromId: myId,
-          fromUsername: myUsername
+          fromUsername: myUsername,
+          isVideo: videoEnabled
         }).catch(err => {
           console.error('Failed to initiate call:', err);
           alert('Failed to initiate call');
+          endCallCleanup();
         });
       });
+    }).catch(err => {
+      console.error('Failed to get user media:', err);
+      alert('Failed to access camera/microphone. Please check permissions.');
+      endCallCleanup();
     });
   };
 
   const answerCall = () => {
+    // Determine if this is a video call from the caller signal
+    const videoCall = callerSignal?.isVideo || false;
+    setIsVideoCall(videoCall);
     setCallActive(true);
     setReceivingCall(false);
     setCallStatus('Call Connected');
 
-    navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then((stream) => {
+    navigator.mediaDevices.getUserMedia({ video: videoCall, audio: true }).then((stream) => {
+      setLocalStream(stream);
+      
+      // Set local stream to video element if video call
+      if (videoCall && myVideo.current) {
+        myVideo.current.srcObject = stream;
+      }
+      
       const peer = new RTCPeerConnection(peerConstraints);
       stream.getTracks().forEach(track => peer.addTrack(track, stream));
 
@@ -701,7 +748,11 @@ function ChatDashboard({ token, myId, myUsername }) {
       };
 
       peer.ontrack = (event) => {
-        userVideo.current.srcObject = event.streams[0];
+        if (videoCall && userVideo.current) {
+          userVideo.current.srcObject = event.streams[0];
+        } else if (!videoCall && userVideo.current) {
+          userVideo.current.srcObject = event.streams[0];
+        }
       };
 
       connectionRef.current = peer;
@@ -716,8 +767,13 @@ function ChatDashboard({ token, myId, myUsername }) {
         }).catch(err => {
           console.error('Failed to answer call:', err);
           alert('Failed to answer call');
+          endCallCleanup();
         });
       });
+    }).catch(err => {
+      console.error('Failed to get user media:', err);
+      alert('Failed to access camera/microphone. Please check permissions.');
+      endCallCleanup();
     });
   };
 
