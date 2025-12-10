@@ -139,7 +139,6 @@ const Message = {
         return {
             _id: msg.id, // Add _id for client compatibility
             id: msg.id,
-            sender: msg.sender_id,
             sender: {
                 _id: msg.sender_id,
                 id: msg.sender_id,
