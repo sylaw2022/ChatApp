@@ -27,14 +27,41 @@ function App() {
   const [view, setView] = useState('chat'); // 'chat' or 'admin'
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('username');
-    const storedId = localStorage.getItem('userId');
-    const storedRole = localStorage.getItem('role');
+    // If we have a token but no user, try to get from localStorage or parse token
+    if (token && !user) {
+      const storedUser = localStorage.getItem('username');
+      const storedId = localStorage.getItem('userId');
+      const storedRole = localStorage.getItem('role');
+      const storedAvatar = localStorage.getItem('avatar') || '';
+      const storedNickname = localStorage.getItem('nickname') || '';
 
-    if (storedUser && storedId) {
-        setUser({ id: storedId, username: storedUser, role: storedRole });
+      if (storedUser && storedId) {
+        setUser({ 
+          id: storedId, 
+          _id: storedId,
+          username: storedUser, 
+          role: storedRole || 'user',
+          avatar: storedAvatar,
+          nickname: storedNickname
+        });
+      } else {
+        // Try to parse token as fallback
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          setUser({ 
+            id: payload.id, 
+            _id: payload.id,
+            username: payload.username, 
+            role: payload.role || 'user',
+            avatar: storedAvatar,
+            nickname: storedNickname
+          });
+        } catch (e) {
+          console.error('Failed to parse token:', e);
+        }
+      }
     }
-  }, []);
+  }, [token]);
 
   const logout = () => {
     localStorage.clear();
@@ -48,7 +75,7 @@ function App() {
   // Show loading if user data is not yet available
   if (!user) {
     return (
-      <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: THEME.bgApp }}>
+      <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#f0f2f5' }}>
         <div>Loading...</div>
       </div>
     );
@@ -94,20 +121,33 @@ function Auth({ setToken, setUser }) {
     e.preventDefault();
     const endpoint = isRegister ? '/register' : '/login';
     try {
-      const { data } = await axios.post(`${API_URL}${endpoint}`, { username, password });
+      const { data } = await axios.post(`${API_URL}/api${endpoint}`, { username, password });
       if (!isRegister) {
+        // Get user ID from response (could be id, _id, or userId)
+        const userId = data.id || data._id || data.userId;
         localStorage.setItem('token', data.token);
-        localStorage.setItem('userId', data.userId);
+        localStorage.setItem('userId', userId);
         localStorage.setItem('username', data.username);
-        localStorage.setItem('role', data.role);
+        localStorage.setItem('role', data.role || 'user');
+        localStorage.setItem('avatar', data.avatar || '');
+        localStorage.setItem('nickname', data.nickname || '');
+        // Set user state immediately
+        setUser({ 
+          id: userId, 
+          _id: userId,
+          username: data.username, 
+          role: data.role || 'user',
+          avatar: data.avatar || '',
+          nickname: data.nickname || ''
+        });
         setToken(data.token);
-        setUser({ id: data.userId, username: data.username, role: data.role });
       } else {
         alert('Registration successful! Please login.');
         setIsRegister(false);
       }
     } catch (err) {
-      alert(err.response?.data?.error || 'An error occurred');
+      const errorMsg = err.response?.data?.error || err.message || 'An error occurred';
+      alert(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
     }
   };
 
