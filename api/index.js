@@ -77,18 +77,33 @@ const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 let clients = {}; 
 app.get('/api/events', (req, res) => {
     const token = req.query.token;
-    if (!token) return res.status(401).end();
+    if (!token) {
+        console.error('SSE connection rejected: No token provided');
+        return res.status(401).json({ error: 'Token required' });
+    }
+    
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         const userId = decoded.id;
         const userIdStr = String(userId);
         
+        console.log(`📡 SSE connection request from user ${userIdStr}`);
+        
+        // Set CORS headers first
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET');
+        res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+        
         res.writeHead(200, { 
             'Content-Type': 'text/event-stream', 
-            'Cache-Control': 'no-cache', 
+            'Cache-Control': 'no-cache, no-transform',
             'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no', // Disable buffering in nginx
             'Access-Control-Allow-Origin': '*'
         });
+        
+        // Send initial connection message
+        res.write(': connected\n\n');
         res.flushHeaders();
         
         // Store connection with multiple key formats for maximum compatibility

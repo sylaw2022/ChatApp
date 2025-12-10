@@ -428,19 +428,45 @@ function ChatDashboard({ token, myId, myUsername }) {
   useEffect(() => {
     if (!token) return;
 
-    // Connect to SSE endpoint with token as query parameter
-    // (EventSource doesn't support custom headers, so we'll use query param)
-    const eventSource = new EventSource(`${API_URL}/api/events?token=${encodeURIComponent(token)}`);
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    let reconnectTimeout = null;
 
-    eventSourceRef.current = eventSource;
-    
-    eventSource.onopen = () => {
-      console.log('✅ SSE connection opened');
-    };
-    
-    eventSource.onerror = (err) => {
-      console.error('❌ SSE connection error:', err);
-    };
+    const connectSSE = () => {
+      try {
+        // Connect to SSE endpoint with token as query parameter
+        // (EventSource doesn't support custom headers, so we'll use query param)
+        const eventSource = new EventSource(`${API_URL}/api/events?token=${encodeURIComponent(token)}`);
+
+        eventSourceRef.current = eventSource;
+        
+        eventSource.onopen = () => {
+          console.log('✅ SSE connection opened');
+          reconnectAttempts = 0; // Reset on successful connection
+        };
+        
+        eventSource.onerror = (err) => {
+          console.error('❌ SSE connection error:', err);
+          console.error('   EventSource readyState:', eventSource.readyState);
+          console.error('   EventSource URL:', eventSource.url);
+          
+          // EventSource.readyState: 0 = CONNECTING, 1 = OPEN, 2 = CLOSED
+          if (eventSource.readyState === EventSource.CLOSED) {
+            console.log('   Connection closed, attempting to reconnect...');
+            eventSource.close();
+            
+            if (reconnectAttempts < maxReconnectAttempts) {
+              reconnectAttempts++;
+              const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Exponential backoff, max 30s
+              console.log(`   Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`);
+              reconnectTimeout = setTimeout(() => {
+                connectSSE();
+              }, delay);
+            } else {
+              console.error('   Max reconnection attempts reached. Please refresh the page.');
+            }
+          }
+        };
 
     // Handle incoming messages
     eventSource.onmessage = (event) => {
