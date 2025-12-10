@@ -440,7 +440,18 @@ function ChatDashboard({ token, myId, myUsername }) {
         const data = JSON.parse(event.data);
         
         if (data.type === 'receive_message') {
-          setMessages((prev) => [...prev, data.message]);
+          const newMessage = data.message || data.data;
+          if (newMessage) {
+            setMessages((prev) => {
+              // Avoid duplicates
+              const exists = prev.some(m => 
+                (m._id === newMessage._id || m.id === newMessage.id) ||
+                (m._id === newMessage.id || m.id === newMessage._id)
+              );
+              if (exists) return prev;
+              return [...prev, newMessage];
+            });
+          }
         } else if (data.type === 'call_user') {
           setReceivingCall(true);
           setCaller(data.from);
