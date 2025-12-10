@@ -803,10 +803,50 @@ function ChatDashboard({ token, myId, myUsername }) {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100%', width: '100%' }}>
-      {/* Invisible Audio Elements for WebRTC */}
-      <audio ref={myVideo} muted />
-      <audio ref={userVideo} autoPlay />
+    <div style={{ display: 'flex', height: '100%', width: '100%', position: 'relative' }}>
+      {/* Video/Audio Elements for WebRTC */}
+      {isVideoCall && callActive ? (
+        <>
+          {/* Remote video (full screen) */}
+          <video 
+            ref={userVideo} 
+            autoPlay 
+            style={{ 
+              position: 'absolute', 
+              width: '100%', 
+              height: '100%', 
+              top: 0, 
+              left: 0, 
+              objectFit: 'cover', 
+              zIndex: 998, 
+              background: '#000' 
+            }} 
+          />
+          {/* Local video preview (picture-in-picture) */}
+          <video 
+            ref={myVideo} 
+            muted 
+            autoPlay 
+            style={{ 
+              position: 'absolute', 
+              width: '200px', 
+              height: '150px', 
+              bottom: '80px', 
+              right: '20px', 
+              borderRadius: '12px', 
+              border: '3px solid #fff', 
+              zIndex: 1000, 
+              background: '#000',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+            }} 
+          />
+        </>
+      ) : (
+        <>
+          <audio ref={myVideo} muted />
+          <audio ref={userVideo} autoPlay />
+        </>
+      )}
 
       {/* Sidebar (User List) */}
       <div style={{ width: '260px', borderRight: '1px solid #ddd', background:'#f8f9fa', display:'flex', flexDirection:'column' }}>
