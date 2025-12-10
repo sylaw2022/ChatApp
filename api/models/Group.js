@@ -75,14 +75,28 @@ const Group = {
 
         const membersList = members ? members.map(m => m.users).filter(Boolean) : [];
 
+        const admin = Array.isArray(group.admin) ? group.admin[0] : group.admin;
         return {
-            _id: group.id,
+            _id: group.id, // Add _id for client compatibility
             id: group.id,
             name: group.name,
-            avatar: group.avatar,
-            admin: Array.isArray(group.admin) ? group.admin[0] : group.admin,
+            avatar: group.avatar || '',
+            admin: admin ? {
+                _id: admin.id,
+                id: admin.id,
+                username: admin.username,
+                nickname: admin.nickname,
+                avatar: admin.avatar
+            } : null,
             admin_id: group.admin_id,
-            members: membersList,
+            members: membersList.map(m => ({
+                _id: m.id,
+                id: m.id,
+                username: m.username,
+                nickname: m.nickname,
+                avatar: m.avatar,
+                role: m.role
+            })),
             createdAt: group.createdAt
         };
     },

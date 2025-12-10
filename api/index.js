@@ -155,7 +155,18 @@ app.post('/api/login', async (req, res) => {
             return res.status(400).json({ error: 'Invalid credentials' });
         }
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET);
-        res.json({ token, userId: user.id, username: user.username, role: user.role, ...user });
+        // Return user data with both id and _id for compatibility
+        res.json({ 
+            token, 
+            userId: user.id,
+            _id: user.id, // Add _id for client compatibility
+            id: user.id,
+            username: user.username, 
+            role: user.role,
+            nickname: user.nickname || '',
+            avatar: user.avatar || '',
+            isVisible: user.isVisible !== undefined ? user.isVisible : true
+        });
     } catch (e) {
         console.error('Login error:', e);
         res.status(500).json({ error: e.message || 'Login failed' });
@@ -260,10 +271,11 @@ app.get('/api/users', async (req, res) => {
         }
         const users = await User.find({ $or: [{ isVisible: true }, { isVisible: { $exists: false } }] });
         const filtered = users.map(u => ({
-            _id: u.id,
+            _id: u.id, // Add _id for client compatibility
+            id: u.id,
             username: u.username,
-            nickname: u.nickname,
-            avatar: u.avatar,
+            nickname: u.nickname || '',
+            avatar: u.avatar || '',
             role: u.role
         }));
         res.json(filtered);

@@ -137,9 +137,16 @@ const Message = {
     formatMessage: (msg) => {
         const sender = msg.sender || (Array.isArray(msg.sender) ? msg.sender[0] : null);
         return {
-            _id: msg.id,
+            _id: msg.id, // Add _id for client compatibility
             id: msg.id,
             sender: msg.sender_id,
+            sender: {
+                _id: msg.sender_id,
+                id: msg.sender_id,
+                username: sender?.username || null,
+                nickname: sender?.nickname || null,
+                avatar: sender?.avatar || null
+            },
             recipient: msg.recipient_id,
             groupId: msg.group_id,
             content: msg.content,
