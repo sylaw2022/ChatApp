@@ -245,4 +245,11 @@ app.get('/api/messages/:u1/:u2', async (req, res) => {
     res.json(m);
 });
 
-app.listen(process.env.PORT || 4000, () => console.log('Server Running'));
+// Only start the server if NOT running in Vercel
+if (process.env.VERCEL !== '1') {
+    const PORT = process.env.PORT || 4000;
+    app.listen(PORT, () => console.log(`Server Running on port ${PORT}`));
+}
+
+// REQUIRED: Export the app for Vercel
+module.exports = app;
