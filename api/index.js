@@ -98,16 +98,19 @@ app.post('/api/profile/avatar', upload.single('file'), async (req, res) => {
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password } = req.body;
+        if (!username || !password) {
+            return res.status(400).json({ error: 'Username and password are required' });
+        }
         const role = username.startsWith('admin') ? 'admin' : 'user';
         const hashedPassword = await bcrypt.hash(password, 10);
         User.create({ username, password: hashedPassword, role });
         res.json({ msg: 'Created' });
     } catch (e) { 
+        console.error('Registration error:', e);
         if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-            res.status(400).json({ error: 'Username exists' });
-        } else {
-            res.status(400).json({ error: 'Registration failed' });
+            return res.status(400).json({ error: 'Username already exists' });
         }
+        return res.status(400).json({ error: e.message || 'Registration failed' });
     }
 });
 

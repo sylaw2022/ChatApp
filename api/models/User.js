@@ -3,19 +3,29 @@ const db = require('../db');
 const User = {
     // Create user
     create: (data) => {
-        const stmt = db.prepare(`
-            INSERT INTO users (username, password, role, nickname, avatar, isVisible)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `);
-        const result = stmt.run(
-            data.username,
-            data.password,
-            data.role || 'user',
-            data.nickname || '',
-            data.avatar || '',
-            data.isVisible !== undefined ? (data.isVisible ? 1 : 0) : 1
-        );
-        return User.findById(result.lastInsertRowid);
+        try {
+            const stmt = db.prepare(`
+                INSERT INTO users (username, password, role, nickname, avatar, isVisible)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `);
+            const result = stmt.run(
+                data.username,
+                data.password,
+                data.role || 'user',
+                data.nickname || '',
+                data.avatar || '',
+                data.isVisible !== undefined ? (data.isVisible ? 1 : 0) : 1
+            );
+            return User.findById(result.lastInsertRowid);
+        } catch (error) {
+            // Re-throw with proper error code for handling in API
+            if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+                const dbError = new Error('Username already exists');
+                dbError.code = 'SQLITE_CONSTRAINT_UNIQUE';
+                throw dbError;
+            }
+            throw error;
+        }
     },
 
     // Find by ID
