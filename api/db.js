@@ -3,19 +3,48 @@ const path = require('path');
 const fs = require('fs');
 
 // Determine database path
-const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../data', 'chat.db');
+// For Vercel, use /tmp (writable directory in serverless functions)
+// Note: Data will be lost on each deployment, SQLite is not ideal for Vercel
+const isVercel = process.env.VERCEL === '1';
+const dbPath = process.env.DATABASE_PATH || (
+    isVercel 
+        ? '/tmp/chat.db' 
+        : path.join(__dirname, '../data', 'chat.db')
+);
 
-// Ensure data directory exists
-const dataDir = path.dirname(dbPath);
-if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+// Ensure data directory exists (only for local)
+if (!isVercel) {
+    const dataDir = path.dirname(dbPath);
+    if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+    }
 }
 
-// Initialize database
-const db = new Database(dbPath);
+// Initialize database with error handling
+let db;
+try {
+    db = new Database(dbPath);
+    console.log(`SQLite database opened at: ${dbPath}`);
+} catch (error) {
+    console.error('Failed to open SQLite database:', error);
+    // Create a mock db object to prevent crashes
+    // Note: This won't work, but prevents immediate crash
+    db = {
+        prepare: () => ({ run: () => ({ lastInsertRowid: 0 }), get: () => null, all: () => [] }),
+        exec: () => {},
+        pragma: () => {}
+    };
+    console.warn('Using mock database - SQLite initialization failed. This will not work properly.');
+}
 
-// Enable foreign keys
-db.pragma('foreign_keys = ON');
+// Enable foreign keys (only if db is valid)
+if (db && typeof db.pragma === 'function') {
+    try {
+        db.pragma('foreign_keys = ON');
+    } catch (e) {
+        console.error('Failed to enable foreign keys:', e);
+    }
+}
 
 // Initialize tables
 function initDatabase() {
@@ -107,8 +136,17 @@ function initDatabase() {
     console.log('SQLite database initialized successfully');
 }
 
-// Initialize on load
-initDatabase();
+// Initialize on load with error handling
+try {
+    if (db && typeof db.exec === 'function') {
+        initDatabase();
+    } else {
+        console.warn('Database not available, skipping initialization');
+    }
+} catch (error) {
+    console.error('Database initialization failed:', error);
+    // Don't throw - let routes handle the error
+}
 
 module.exports = db;
 

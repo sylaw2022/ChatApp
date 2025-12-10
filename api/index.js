@@ -8,14 +8,30 @@ const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
 
 // Initialize SQLite database
-const db = require('./db');
-const User = require('./models/User');
-const Message = require('./models/Message');
-const Group = require('./models/Group');
+let db, User, Message, Group;
+try {
+    db = require('./db');
+    User = require('./models/User');
+    Message = require('./models/Message');
+    Group = require('./models/Group');
+} catch (error) {
+    console.error('Database initialization error:', error);
+    // Continue anyway - errors will be caught in routes
+}
 
 const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+
+// Global error handler
+app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err);
+    res.status(500).json({ 
+        code: '500',
+        message: err.message || 'A server error has occurred',
+        error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+});
 
 // --- CLOUDINARY CONFIGURATION ---
 cloudinary.config({
@@ -97,6 +113,9 @@ app.post('/api/profile/avatar', upload.single('file'), async (req, res) => {
 
 app.post('/api/register', async (req, res) => {
     try {
+        if (!User) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
         const { username, password } = req.body;
         if (!username || !password) {
             return res.status(400).json({ error: 'Username and password are required' });
@@ -110,142 +129,265 @@ app.post('/api/register', async (req, res) => {
         if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
             return res.status(400).json({ error: 'Username already exists' });
         }
-        return res.status(400).json({ error: e.message || 'Registration failed' });
+        return res.status(500).json({ error: e.message || 'Registration failed' });
     }
 });
 
 app.post('/api/login', async (req, res) => {
-    const { username, password } = req.body;
-    const user = User.findOne({ username });
-    if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: 'Invalid' });
-    const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET);
-    res.json({ token, userId: user.id, username: user.username, role: user.role, ...user });
+    try {
+        if (!User) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
+        const { username, password } = req.body;
+        const user = User.findOne({ username });
+        if (!user || !(await bcrypt.compare(password, user.password))) {
+            return res.status(400).json({ error: 'Invalid credentials' });
+        }
+        const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET);
+        res.json({ token, userId: user.id, username: user.username, role: user.role, ...user });
+    } catch (e) {
+        console.error('Login error:', e);
+        res.status(500).json({ error: e.message || 'Login failed' });
+    }
 });
 
 app.put('/api/profile', async (req, res) => {
-    const { token, nickname, isVisible } = req.body;
-    const uid = jwt.verify(token, JWT_SECRET).id;
-    const user = User.findByIdAndUpdate(uid, { nickname, isVisible });
-    res.json(user);
+    try {
+        if (!User) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
+        const { token, nickname, isVisible } = req.body;
+        const uid = jwt.verify(token, JWT_SECRET).id;
+        const user = User.findByIdAndUpdate(uid, { nickname, isVisible });
+        res.json(user);
+    } catch (e) {
+        console.error('Profile update error:', e);
+        res.status(500).json({ error: e.message || 'Profile update failed' });
+    }
 });
 
 app.post('/api/friends/request', async (req, res) => {
-    const { token, toUserId } = req.body;
-    const fromId = jwt.verify(token, JWT_SECRET).id;
-    if(fromId === toUserId) return res.status(400).json({error: "Cannot add self"});
-    const targetUser = User.findById(toUserId);
-    if(!targetUser) return res.status(404).json({error: "User not found"});
-    
-    if(User.hasFriendRequest(fromId, toUserId) || User.isFriend(fromId, toUserId)) {
-        return res.json({msg: 'Already requested/friends'});
+    try {
+        if (!User) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
+        const { token, toUserId } = req.body;
+        const fromId = jwt.verify(token, JWT_SECRET).id;
+        if(fromId === toUserId) return res.status(400).json({error: "Cannot add self"});
+        const targetUser = User.findById(toUserId);
+        if(!targetUser) return res.status(404).json({error: "User not found"});
+        
+        if(User.hasFriendRequest(fromId, toUserId) || User.isFriend(fromId, toUserId)) {
+            return res.json({msg: 'Already requested/friends'});
+        }
+        
+        User.addFriendRequest(fromId, toUserId);
+        sendEvent(toUserId, 'friend_request', { from: User.findById(fromId) });
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Friend request error:', e);
+        res.status(500).json({ error: e.message || 'Friend request failed' });
     }
-    
-    User.addFriendRequest(fromId, toUserId);
-    sendEvent(toUserId, 'friend_request', { from: User.findById(fromId) });
-    res.json({ success: true });
 });
 
 app.post('/api/friends/accept', async (req, res) => {
-    const { token, fromUserId } = req.body;
-    const myId = jwt.verify(token, JWT_SECRET).id;
-    User.removeFriendRequest(fromUserId, myId);
-    User.addFriend(myId, fromUserId);
-    sendEvent(fromUserId, 'friend_accepted', { fromId: myId });
-    res.json({ success: true });
+    try {
+        if (!User) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
+        const { token, fromUserId } = req.body;
+        const myId = jwt.verify(token, JWT_SECRET).id;
+        User.removeFriendRequest(fromUserId, myId);
+        User.addFriend(myId, fromUserId);
+        sendEvent(fromUserId, 'friend_accepted', { fromId: myId });
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Friend accept error:', e);
+        res.status(500).json({ error: e.message || 'Friend accept failed' });
+    }
 });
 
 app.get('/api/my-network', async (req, res) => {
-    const token = req.headers['authorization']?.split(' ')[1];
-    if(!token) return res.status(401);
-    const uid = jwt.verify(token, JWT_SECRET).id;
-    const friends = User.getFriends(uid);
-    const requests = User.getFriendRequests(uid);
-    res.json({ friends, requests });
+    try {
+        if (!User) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
+        const token = req.headers['authorization']?.split(' ')[1];
+        if(!token) return res.status(401).json({ error: 'Unauthorized' });
+        const uid = jwt.verify(token, JWT_SECRET).id;
+        const friends = User.getFriends(uid);
+        const requests = User.getFriendRequests(uid);
+        res.json({ friends, requests });
+    } catch (e) {
+        console.error('My network error:', e);
+        res.status(500).json({ error: e.message || 'Failed to fetch network' });
+    }
 });
 
 app.get('/api/users', async (req, res) => {
-    const users = User.find({ $or: [{ isVisible: true }, { isVisible: { $exists: false } }] });
-    const filtered = users.map(u => ({
-        _id: u.id,
-        username: u.username,
-        nickname: u.nickname,
-        avatar: u.avatar,
-        role: u.role
-    }));
-    res.json(filtered);
+    try {
+        if (!User) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
+        const users = User.find({ $or: [{ isVisible: true }, { isVisible: { $exists: false } }] });
+        const filtered = users.map(u => ({
+            _id: u.id,
+            username: u.username,
+            nickname: u.nickname,
+            avatar: u.avatar,
+            role: u.role
+        }));
+        res.json(filtered);
+    } catch (e) {
+        console.error('Users error:', e);
+        res.status(500).json({ error: e.message || 'Failed to fetch users' });
+    }
 });
 
 app.post('/api/groups', async (req, res) => {
-    const { token, name, members } = req.body;
-    const adminId = jwt.verify(token, JWT_SECRET).id;
-    const allMembers = [...new Set([...members, adminId].map(id => parseInt(id)))];
-    const group = Group.create({ name, admin: adminId, members: allMembers });
-    allMembers.forEach(m => sendEvent(m, 'group_created', group));
-    res.json(group);
+    try {
+        if (!Group) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
+        const { token, name, members } = req.body;
+        const adminId = jwt.verify(token, JWT_SECRET).id;
+        const allMembers = [...new Set([...members, adminId].map(id => parseInt(id)))];
+        const group = Group.create({ name, admin: adminId, members: allMembers });
+        allMembers.forEach(m => sendEvent(m, 'group_created', group));
+        res.json(group);
+    } catch (e) {
+        console.error('Create group error:', e);
+        res.status(500).json({ error: e.message || 'Failed to create group' });
+    }
 });
 
 app.delete('/api/groups/:id', async (req, res) => {
-    const token = req.headers['authorization']?.split(' ')[1];
-    const uid = jwt.verify(token, JWT_SECRET).id;
-    const group = Group.findById(req.params.id);
-    if (!group) return res.status(404).json({error: "Group not found"});
-    const user = User.findById(uid);
-    if (group.admin_id !== uid && user.role !== 'admin') return res.status(403).json({error: "Not authorized"});
-    
-    group.members.forEach(m => sendEvent(m.id, 'group_deleted', { groupId: group.id }));
-    Group.findByIdAndDelete(req.params.id);
-    Message.deleteMany({ groupId: req.params.id });
-    res.json({ success: true });
+    try {
+        if (!Group || !User || !Message) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
+        const token = req.headers['authorization']?.split(' ')[1];
+        const uid = jwt.verify(token, JWT_SECRET).id;
+        const group = Group.findById(req.params.id);
+        if (!group) return res.status(404).json({error: "Group not found"});
+        const user = User.findById(uid);
+        if (group.admin_id !== uid && user.role !== 'admin') return res.status(403).json({error: "Not authorized"});
+        
+        group.members.forEach(m => sendEvent(m.id, 'group_deleted', { groupId: group.id }));
+        Group.findByIdAndDelete(req.params.id);
+        Message.deleteMany({ groupId: req.params.id });
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Delete group error:', e);
+        res.status(500).json({ error: e.message || 'Failed to delete group' });
+    }
 });
 
 app.get('/api/groups', async (req, res) => {
-    const token = req.headers['authorization']?.split(' ')[1];
-    const uid = jwt.verify(token, JWT_SECRET).id;
-    const groups = Group.find({ members: uid });
-    res.json(groups);
+    try {
+        if (!Group) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
+        const token = req.headers['authorization']?.split(' ')[1];
+        const uid = jwt.verify(token, JWT_SECRET).id;
+        const groups = Group.find({ members: uid });
+        res.json(groups);
+    } catch (e) {
+        console.error('Get groups error:', e);
+        res.status(500).json({ error: e.message || 'Failed to fetch groups' });
+    }
 });
 
 app.get('/api/groups/:groupId/details', async (req, res) => {
-    const group = Group.findById(req.params.groupId);
-    res.json(group);
+    try {
+        if (!Group) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
+        const group = Group.findById(req.params.groupId);
+        res.json(group);
+    } catch (e) {
+        console.error('Group details error:', e);
+        res.status(500).json({ error: e.message || 'Failed to fetch group details' });
+    }
 });
 
 app.get('/api/groups/:groupId/messages', async (req, res) => {
-    const msgs = Message.find({ groupId: req.params.groupId });
-    res.json(msgs);
+    try {
+        if (!Message) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
+        const msgs = Message.find({ groupId: req.params.groupId });
+        res.json(msgs);
+    } catch (e) {
+        console.error('Group messages error:', e);
+        res.status(500).json({ error: e.message || 'Failed to fetch messages' });
+    }
 });
 
 app.post('/api/message', async (req, res) => {
-    const { token, recipientId, groupId, content, type, fileUrl } = req.body;
-    const senderId = jwt.verify(token, JWT_SECRET).id;
-    const msg = Message.create({ sender: senderId, recipient: recipientId, groupId, content, type, fileUrl });
+    try {
+        if (!Message) {
+            return res.status(500).json({ error: 'Database not initialized' });
+        }
+        const { token, recipientId, groupId, content, type, fileUrl } = req.body;
+        const senderId = jwt.verify(token, JWT_SECRET).id;
+        const msg = Message.create({ sender: senderId, recipient: recipientId, groupId, content, type, fileUrl });
 
-    if(groupId) {
-        const g = Group.findById(groupId);
-        g.members.forEach(m => sendEvent(m.id, 'receive_message', msg));
-    } else {
-        sendEvent(recipientId, 'receive_message', msg);
-        sendEvent(senderId, 'receive_message', msg);
+        if(groupId) {
+            const g = Group.findById(groupId);
+            if (g && g.members) {
+                g.members.forEach(m => sendEvent(m.id, 'receive_message', msg));
+            }
+        } else {
+            sendEvent(recipientId, 'receive_message', msg);
+            sendEvent(senderId, 'receive_message', msg);
+        }
+        res.json({success:true, message: msg});
+    } catch (e) {
+        console.error('Send message error:', e);
+        res.status(500).json({ error: e.message || 'Failed to send message' });
     }
-    res.json({success:true, message: msg});
 });
 
-app.get('/api/admin/users', async (req,res) => { res.json(User.find()); });
-app.delete('/api/admin/users/:id', async (req,res) => { User.findByIdAndDelete(req.params.id); res.json({ok:true}); });
+app.get('/api/admin/users', async (req,res) => { 
+    try {
+        if (!User) return res.status(500).json({ error: 'Database not initialized' });
+        res.json(User.find()); 
+    } catch (e) {
+        console.error('Admin users error:', e);
+        res.status(500).json({ error: e.message || 'Failed to fetch users' });
+    }
+});
+app.delete('/api/admin/users/:id', async (req,res) => { 
+    try {
+        if (!User) return res.status(500).json({ error: 'Database not initialized' });
+        User.findByIdAndDelete(req.params.id); 
+        res.json({ok:true}); 
+    } catch (e) {
+        console.error('Delete user error:', e);
+        res.status(500).json({ error: e.message || 'Failed to delete user' });
+    }
+});
 app.post('/api/signal', (req, res) => { 
     const decoded = jwt.verify(req.body.token, JWT_SECRET);
     sendEvent(req.body.to, req.body.type, { ...req.body.payload, from: decoded.id });
     res.json({ok:true});
 });
 app.get('/api/messages/:u1/:u2', async (req, res) => {
-    const m = Message.find({ 
-        groupId: null, 
-        $or: [
-            {sender: parseInt(req.params.u1), recipient: parseInt(req.params.u2)},
-            {sender: parseInt(req.params.u2), recipient: parseInt(req.params.u1)}
-        ]
-    });
-    res.json(m);
+    try {
+        if (!Message) return res.status(500).json({ error: 'Database not initialized' });
+        const m = Message.find({ 
+            groupId: null, 
+            $or: [
+                {sender: parseInt(req.params.u1), recipient: parseInt(req.params.u2)},
+                {sender: parseInt(req.params.u2), recipient: parseInt(req.params.u1)}
+            ]
+        });
+        res.json(m);
+    } catch (e) {
+        console.error('Messages error:', e);
+        res.status(500).json({ error: e.message || 'Failed to fetch messages' });
+    }
 });
 
 // Only start the server if NOT running in Vercel
