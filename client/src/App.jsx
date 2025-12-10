@@ -461,13 +461,12 @@ function ChatDashboard({ token, myId, myUsername }) {
 
       if (selectedUser) {
         try {
-          await axios.post(`${API_URL}/messages/send`, {
-            recipientId: selectedUser._id,
+          await axios.post(`${API_URL}/api/message`, {
+            token,
+            recipientId: selectedUser._id || selectedUser.id,
             content: file.name,
             type: type, // 'image', 'audio', 'video'
             fileUrl: fileUrl
-          }, {
-            headers: { Authorization: `Bearer ${token}` }
           });
         } catch (err) {
           console.error('Failed to send file message:', err);
