@@ -489,8 +489,6 @@ function ChatDashboard({ token, myId, myUsername }) {
           } else {
             console.warn('⚠️ Received message event but message data is missing. Full event:', data);
           }
-        } else {
-          console.log('📥 Received non-message SSE event:', data.type);
         } else if (data.type === 'call_user') {
           setReceivingCall(true);
           setCaller(data.from);
@@ -507,6 +505,8 @@ function ChatDashboard({ token, myId, myUsername }) {
           }
         } else if (data.type === 'end_call') {
           endCallCleanup();
+        } else {
+          console.log('📥 Received non-message SSE event:', data.type);
         }
       } catch (err) {
         console.error('Error parsing SSE message:', err);
