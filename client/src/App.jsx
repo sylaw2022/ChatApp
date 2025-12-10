@@ -514,25 +514,42 @@ function ChatDashboard({ token, myId, myUsername }) {
     if (!token || !myId) return;
     // Fetch all users
     axios.get(`${API_URL}/api/users`)
-      .then(res => setUsers(res.data.filter(u => (u._id || u.id) !== myId)))
-      .catch(err => console.error('Failed to fetch users:', err));
+      .then(res => {
+        console.log('Users data:', res.data);
+        setUsers(res.data.filter(u => (u._id || u.id) !== myId));
+      })
+      .catch(err => {
+        console.error('Failed to fetch users:', err);
+        setUsers([]);
+      });
     
     // Fetch friends and requests
     axios.get(`${API_URL}/api/my-network`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => {
+        console.log('Network data:', res.data);
         setFriends(res.data.friends || []);
         setRequests(res.data.requests || []);
       })
-      .catch(err => console.error('Failed to fetch network:', err));
+      .catch(err => {
+        console.error('Failed to fetch network:', err);
+        setFriends([]);
+        setRequests([]);
+      });
     
     // Fetch groups
     axios.get(`${API_URL}/api/groups`, {
       headers: { Authorization: `Bearer ${token}` }
     })
-      .then(res => setGroups(res.data || []))
-      .catch(err => console.error('Failed to fetch groups:', err));
+      .then(res => {
+        console.log('Groups data:', res.data);
+        setGroups(res.data || []);
+      })
+      .catch(err => {
+        console.error('Failed to fetch groups:', err);
+        setGroups([]);
+      });
   }, [myId, token]);
 
   useEffect(() => {
@@ -811,21 +828,35 @@ function ChatDashboard({ token, myId, myUsername }) {
           ))}
           
           {/* Groups/Communities */}
-          {activeTab === 'communities' && groups.map(g => (
-            <div 
-              key={g._id || g.id} 
-              onClick={() => { setSelectedGroup(g); setSelectedUser(null); }}
-              style={{ 
-                padding: '15px 20px', 
-                cursor: 'pointer',
-                background: selectedGroup?._id === (g._id || g.id) ? '#e9ecef' : 'transparent',
-                borderBottom: '1px solid #eee',
-                fontWeight: selectedGroup?._id === (g._id || g.id) ? 'bold' : 'normal'
-              }}
-            >
-              👥 {g.name}
-            </div>
-          ))}
+          {activeTab === 'communities' && (
+            <>
+              {groups.length > 0 ? groups.map(g => (
+                <div 
+                  key={g._id || g.id} 
+                  onClick={() => { setSelectedGroup(g); setSelectedUser(null); }}
+                  style={{ 
+                    padding: '15px 20px', 
+                    cursor: 'pointer',
+                    background: selectedGroup?._id === (g._id || g.id) ? '#e9ecef' : 'transparent',
+                    borderBottom: '1px solid #eee',
+                    fontWeight: selectedGroup?._id === (g._id || g.id) ? 'bold' : 'normal',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}
+                >
+                  <span style={{ fontSize: '1.2em' }}>👥</span>
+                  <span>{g.name || 'Unnamed Group'}</span>
+                </div>
+              )) : (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>
+                  <div style={{ marginBottom: '10px', fontSize: '2em' }}>👥</div>
+                  <div>No groups yet</div>
+                  <div style={{ fontSize: '0.85em', marginTop: '5px', color: '#aaa' }}>Create a group to get started</div>
+                </div>
+              )}
+            </>
+          )}
           
           {/* All Users */}
           {activeTab === 'all' && users.map(u => (
@@ -857,15 +888,6 @@ function ChatDashboard({ token, myId, myUsername }) {
             </div>
           ))}
           
-          {activeTab === 'friends' && friends.length === 0 && requests.length === 0 && (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>No friends yet</div>
-          )}
-          {activeTab === 'communities' && groups.length === 0 && (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>No groups yet</div>
-          )}
-          {activeTab === 'all' && users.length === 0 && (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#888' }}>No users found</div>
-          )}
         </div>
       </div>
 
