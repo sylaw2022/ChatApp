@@ -74,6 +74,8 @@ const User = {
 
     // Update by ID
     findByIdAndUpdate: (id, data, options = {}) => {
+        // Convert to integer if it's a string
+        const idInt = typeof id === 'string' ? parseInt(id) : id;
         const updates = [];
         const params = [];
 
@@ -113,13 +115,13 @@ const User = {
         }
 
         if (updates.length > 0) {
-            params.push(id);
+            params.push(idInt);
             const stmt = db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`);
             stmt.run(...params);
         }
 
         // Return the updated user
-        const updatedUser = User.findById(id);
+        const updatedUser = User.findById(idInt);
         return updatedUser || null;
     },
 

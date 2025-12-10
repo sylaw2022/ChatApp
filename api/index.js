@@ -161,7 +161,7 @@ app.put('/api/profile', async (req, res) => {
             return res.status(401).json({ error: 'Token required' });
         }
         const decoded = jwt.verify(token, JWT_SECRET);
-        const uid = decoded.id;
+        const uid = parseInt(decoded.id); // Convert to integer for SQLite
         
         const updateData = {};
         if (nickname !== undefined) updateData.nickname = nickname;
