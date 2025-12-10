@@ -11,12 +11,22 @@ const fs = require('fs');
 let supabase, User, Message, Group;
 try {
     supabase = require('./db');
-    User = require('./models/User');
-    Message = require('./models/Message');
-    Group = require('./models/Group');
-    console.log('Supabase models loaded successfully');
+    if (supabase) {
+        User = require('./models/User');
+        Message = require('./models/Message');
+        Group = require('./models/Group');
+        console.log('✅ Supabase models loaded successfully');
+    } else {
+        console.error('❌ Supabase client is null - check your environment variables');
+        User = null;
+        Message = null;
+        Group = null;
+    }
 } catch (error) {
-    console.error('Database initialization error:', error);
+    console.error('❌ Database initialization error:', error.message);
+    User = null;
+    Message = null;
+    Group = null;
     // Continue anyway - errors will be caught in routes
 }
 
