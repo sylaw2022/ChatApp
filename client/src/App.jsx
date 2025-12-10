@@ -87,12 +87,24 @@ function App() {
       <div style={{ background: '#333', color: '#fff', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ margin: 0 }}>Chat App {user?.role === 'admin' && <span style={{fontSize:'0.6em', background:'red', padding:'2px 5px', borderRadius:'4px', verticalAlign:'middle'}}>ADMIN</span>}</h2>
         <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+                onClick={() => setView('chat')}
+                style={{ background: view === 'chat' ? '#555' : '#007bff', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}
+            >
+                Chat
+            </button>
+            <button 
+                onClick={() => setView('profile')}
+                style={{ background: view === 'profile' ? '#555' : '#007bff', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}
+            >
+                Profile
+            </button>
             {user?.role === 'admin' && (
                 <button 
-                    onClick={() => setView(view === 'chat' ? 'admin' : 'chat')}
+                    onClick={() => setView('admin')}
                     style={{ background: view === 'admin' ? '#555' : '#007bff', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}
                 >
-                    {view === 'chat' ? 'Admin Panel' : 'Back to Chat'}
+                    Admin
                 </button>
             )}
             <button onClick={logout} style={{ background: '#dc3545', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}>Logout</button>
