@@ -193,7 +193,16 @@ function Auth({ setToken, setUser }) {
         localStorage.setItem('nickname', data.nickname || '');
         setToken(data.token);
       } else { setIsRegister(false); alert('Created! Please login.'); }
-    } catch (err) { alert(err.response?.data?.error || 'Error'); }
+    } catch (err) { 
+      const errorMsg = err.response?.data?.error;
+      if (typeof errorMsg === 'string') {
+        alert(errorMsg);
+      } else if (errorMsg) {
+        alert(JSON.stringify(errorMsg));
+      } else {
+        alert(err.message || 'An error occurred');
+      }
+    }
   };
 
   return (
