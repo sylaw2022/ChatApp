@@ -445,7 +445,9 @@ function ChatDashboard({ token, myId, myUsername }) {
     // Handle incoming messages
     eventSource.onmessage = (event) => {
       try {
+        console.log('📥 Raw SSE event received:', event.data);
         const data = JSON.parse(event.data);
+        console.log('📥 Parsed SSE data:', data);
         
         if (data.type === 'receive_message') {
           console.log('📨 Received SSE message event:', data);
@@ -467,6 +469,9 @@ function ChatDashboard({ token, myId, myUsername }) {
             };
             
             console.log('📨 Formatted message:', formattedMessage);
+            console.log('📨 Current myId:', myId);
+            console.log('📨 Message recipient:', formattedMessage.recipient);
+            console.log('📨 Message sender:', formattedMessage.sender);
             
             setMessages((prev) => {
               // Avoid duplicates
@@ -478,12 +483,14 @@ function ChatDashboard({ token, myId, myUsername }) {
                 console.log('⚠️ Duplicate message ignored');
                 return prev;
               }
-              console.log('✅ Adding new message to list');
+              console.log('✅ Adding new message to list. Previous count:', prev.length, 'New count:', prev.length + 1);
               return [...prev, formattedMessage];
             });
           } else {
             console.warn('⚠️ Received message event but message data is missing. Full event:', data);
           }
+        } else {
+          console.log('📥 Received non-message SSE event:', data.type);
         } else if (data.type === 'call_user') {
           setReceivingCall(true);
           setCaller(data.from);

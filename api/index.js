@@ -129,32 +129,39 @@ const sendEvent = (uid, type, data) => {
     // Try both string and integer formats for the user ID
     const uidStr = String(uid);
     const uidInt = typeof uid === 'string' ? parseInt(uid) : uid;
-    const target = clients[uidStr] || clients[String(uidInt)];
+    
+    // Try multiple key formats
+    const target = clients[uidStr] || clients[String(uidInt)] || clients[uidInt] || clients[parseInt(uidStr)];
     
     if (target) {
         try {
-            // Always include type, and ensure message is accessible via both 'message' and 'data' keys
+            // Create event payload with type and message/data
             const eventPayload = {
-                type,
-                ...data,  // Spread the data object (which may contain 'message' and 'data' keys)
-                message: data.message || data.data || data,  // Ensure 'message' key exists
-                data: data.data || data.message || data      // Ensure 'data' key exists
+                type: type,
+                message: data,
+                data: data
             };
-            target.write(`data: ${JSON.stringify(eventPayload)}\n\n`);
-            console.log(`✅ Sent ${type} event to user ${uidStr}`);
+            const eventString = `data: ${JSON.stringify(eventPayload)}\n\n`;
+            target.write(eventString);
+            console.log(`✅ Sent ${type} event to user ${uidStr} (found as key: ${clients[uidStr] ? uidStr : (clients[String(uidInt)] ? String(uidInt) : 'other')})`);
             if (type === 'receive_message') {
-                const msgId = data.message?.id || data.message?._id || data.data?.id || data.data?._id || data.id || data._id;
-                console.log(`   Message ID: ${msgId}`);
+                const msgId = data?.id || data?._id;
+                console.log(`   Message ID: ${msgId}, Content: ${data?.content?.substring(0, 50)}...`);
             }
         } catch (err) {
             console.error(`❌ Failed to send event to user ${uidStr}:`, err);
             // Remove dead connection
             delete clients[uidStr];
             delete clients[String(uidInt)];
+            if (typeof uidInt === 'number') {
+                delete clients[uidInt];
+            }
         }
     } else {
         console.log(`⚠️ No SSE connection found for user ${uidStr} (type: ${type})`);
+        console.log(`   Tried keys: ${uidStr}, ${String(uidInt)}, ${uidInt}, ${parseInt(uidStr)}`);
         console.log(`   Available clients:`, Object.keys(clients));
+        console.log(`   Client types:`, Object.keys(clients).map(k => typeof k));
     }
 };
 
@@ -522,12 +529,14 @@ app.post('/api/message', async (req, res) => {
             }
         } else if (recipientIdInt) {
             // Send to recipient
-            console.log(`📤 Sending message to recipient ${recipientIdInt} from sender ${senderIdInt}`);
+            console.log(`📤 Sending message to recipient ${recipientIdInt} (type: ${typeof recipientIdInt}) from sender ${senderIdInt} (type: ${typeof senderIdInt})`);
             console.log(`📤 Message data:`, JSON.stringify(msg, null, 2));
-            // Send with both 'message' and 'data' keys for compatibility
-            sendEvent(recipientIdInt, 'receive_message', { message: msg, data: msg });
+            console.log(`📤 Available SSE clients:`, Object.keys(clients));
+            
+            // Send with message as the data directly
+            sendEvent(recipientIdInt, 'receive_message', msg);
             // Also send to sender so they see their own message
-            sendEvent(senderIdInt, 'receive_message', { message: msg, data: msg });
+            sendEvent(senderIdInt, 'receive_message', msg);
         }
         res.json({success:true, message: msg});
     } catch (e) {
