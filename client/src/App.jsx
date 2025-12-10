@@ -241,7 +241,11 @@ function ProfileSettings({ token, currentUser, setUser }) {
             }
             setUser(prev => ({ ...prev, ...data }));
             alert('Saved!');
-        } catch (e) { alert('Error'); }
+        } catch (e) { 
+            const errorMsg = e.response?.data?.error || e.message || 'Failed to save profile';
+            alert(errorMsg);
+            console.error('Profile save error:', e);
+        }
     };
 
     return (
