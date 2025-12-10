@@ -93,6 +93,27 @@ const sendEvent = (uid, type, data) => {
     if(target) target.write(`data: ${JSON.stringify({type,data})}\n\n`); 
 };
 
+// --- CALL SIGNALING STORAGE ---
+// Store pending call signals for polling (key: userId, value: array of signals)
+let callSignals = {};
+
+// Helper to add call signal for a user
+const addCallSignal = (userId, signal) => {
+    const uid = String(userId);
+    if (!callSignals[uid]) callSignals[uid] = [];
+    callSignals[uid].push({ ...signal, timestamp: Date.now() });
+    // Keep only last 50 signals per user
+    if (callSignals[uid].length > 50) callSignals[uid] = callSignals[uid].slice(-50);
+};
+
+// Helper to get and clear call signals for a user
+const getCallSignals = (userId) => {
+    const uid = String(userId);
+    const signals = callSignals[uid] || [];
+    callSignals[uid] = []; // Clear after reading
+    return signals;
+};
+
 // --- FILE UPLOAD ROUTES (UPDATED) ---
 
 // 1. General Upload (Chat files)
@@ -438,6 +459,163 @@ app.post('/api/signal', (req, res) => {
     const decoded = jwt.verify(req.body.token, JWT_SECRET);
     sendEvent(req.body.to, req.body.type, { ...req.body.payload, from: decoded.id });
     res.json({ok:true});
+});
+
+// --- CALL ENDPOINTS ---
+app.post('/api/calls/initiate', async (req, res) => {
+    try {
+        const { token, userToCall, signalData, fromId, fromUsername } = req.body;
+        if (!token || !userToCall || !signalData) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const callerId = decoded.id;
+        const targetId = typeof userToCall === 'string' ? parseInt(userToCall) : userToCall;
+        const callerIdInt = typeof callerId === 'string' ? parseInt(callerId) : callerId;
+        
+        // Send call signal via SSE
+        sendEvent(targetId, 'call_user', {
+            from: callerIdInt,
+            signal: signalData,
+            name: fromUsername || 'Someone'
+        });
+        
+        // Also store for polling
+        addCallSignal(targetId, {
+            type: 'call_user',
+            data: {
+                from: callerIdInt,
+                signal: signalData,
+                name: fromUsername || 'Someone'
+            }
+        });
+        
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Call initiate error:', e);
+        if (e.name === 'JsonWebTokenError' || e.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+        res.status(500).json({ error: e.message || 'Failed to initiate call' });
+    }
+});
+
+app.post('/api/calls/answer', async (req, res) => {
+    try {
+        const { token, signal, to } = req.body;
+        if (!token || !signal || !to) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const answererId = decoded.id;
+        const callerId = typeof to === 'string' ? parseInt(to) : to;
+        const answererIdInt = typeof answererId === 'string' ? parseInt(answererId) : answererId;
+        
+        // Send answer signal via SSE
+        sendEvent(callerId, 'call_accepted', signal);
+        
+        // Also store for polling
+        addCallSignal(callerId, {
+            type: 'call_accepted',
+            data: signal
+        });
+        
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Call answer error:', e);
+        if (e.name === 'JsonWebTokenError' || e.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+        res.status(500).json({ error: e.message || 'Failed to answer call' });
+    }
+});
+
+app.post('/api/calls/ice-candidate', async (req, res) => {
+    try {
+        const { token, to, candidate } = req.body;
+        if (!token || !to || !candidate) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const senderId = decoded.id;
+        const targetId = typeof to === 'string' ? parseInt(to) : to;
+        const senderIdInt = typeof senderId === 'string' ? parseInt(senderId) : senderId;
+        
+        // Send ICE candidate via SSE
+        sendEvent(targetId, 'ice_candidate', candidate);
+        
+        // Also store for polling
+        addCallSignal(targetId, {
+            type: 'ice_candidate',
+            data: candidate
+        });
+        
+        res.json({ success: true });
+    } catch (e) {
+        console.error('ICE candidate error:', e);
+        if (e.name === 'JsonWebTokenError' || e.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+        res.status(500).json({ error: e.message || 'Failed to send ICE candidate' });
+    }
+});
+
+app.post('/api/calls/end', async (req, res) => {
+    try {
+        const { token, to } = req.body;
+        if (!token) {
+            return res.status(400).json({ error: 'Token required' });
+        }
+        
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const senderId = decoded.id;
+        const senderIdInt = typeof senderId === 'string' ? parseInt(senderId) : senderId;
+        
+        // If 'to' is provided, send end call signal to that user
+        if (to) {
+            const targetId = typeof to === 'string' ? parseInt(to) : to;
+            sendEvent(targetId, 'end_call', { from: senderIdInt });
+            addCallSignal(targetId, {
+                type: 'end_call',
+                data: { from: senderIdInt }
+            });
+        }
+        
+        res.json({ success: true });
+    } catch (e) {
+        console.error('End call error:', e);
+        if (e.name === 'JsonWebTokenError' || e.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+        res.status(500).json({ error: e.message || 'Failed to end call' });
+    }
+});
+
+app.get('/api/calls/poll', async (req, res) => {
+    try {
+        const token = req.headers['authorization']?.split(' ')[1] || req.query.token;
+        if (!token) {
+            return res.status(401).json({ error: 'Token required' });
+        }
+        
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const userId = decoded.id;
+        const userIdInt = typeof userId === 'string' ? parseInt(userId) : userId;
+        
+        // Get and clear pending signals
+        const signals = getCallSignals(userIdInt);
+        
+        res.json(signals);
+    } catch (e) {
+        console.error('Call poll error:', e);
+        if (e.name === 'JsonWebTokenError' || e.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+        res.status(500).json({ error: e.message || 'Failed to poll calls' });
+    }
 });
 app.get('/api/messages/:u1/:u2', async (req, res) => {
     try {
