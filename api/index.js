@@ -79,13 +79,50 @@ app.get('/api/events', (req, res) => {
     const token = req.query.token;
     if (!token) return res.status(401).end();
     try {
-        const userId = jwt.verify(token, JWT_SECRET).id;
-        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const userId = decoded.id;
+        const userIdStr = String(userId);
+        
+        res.writeHead(200, { 
+            'Content-Type': 'text/event-stream', 
+            'Cache-Control': 'no-cache', 
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*'
+        });
         res.flushHeaders();
-        clients[userId] = res;
-        const keepAlive = setInterval(() => res.write(': keepalive\n\n'), 15000);
-        req.on('close', () => { clearInterval(keepAlive); delete clients[userId]; });
-    } catch (e) { res.status(401).end(); }
+        
+        // Store connection with both string and integer keys for compatibility
+        clients[userIdStr] = res;
+        if (typeof userId === 'number') {
+            clients[String(userId)] = res;
+        }
+        
+        console.log(`✅ SSE connection established for user ${userIdStr}`);
+        
+        const keepAlive = setInterval(() => {
+            try {
+                res.write(': keepalive\n\n');
+            } catch (err) {
+                clearInterval(keepAlive);
+                delete clients[userIdStr];
+                if (typeof userId === 'number') {
+                    delete clients[String(userId)];
+                }
+            }
+        }, 15000);
+        
+        req.on('close', () => { 
+            clearInterval(keepAlive); 
+            delete clients[userIdStr];
+            if (typeof userId === 'number') {
+                delete clients[String(userId)];
+            }
+            console.log(`❌ SSE connection closed for user ${userIdStr}`);
+        });
+    } catch (e) { 
+        console.error('SSE connection error:', e);
+        res.status(401).end(); 
+    }
 });
 
 const sendEvent = (uid, type, data) => { 
