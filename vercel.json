@@ -8,12 +8,8 @@
       "destination": "/api/index.js"
     },
     {
-      "source": "/(.*\\.(js|css|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|json|webp))",
-      "destination": "/client/dist/$1"
-    },
-    {
       "source": "/(.*)",
-      "destination": "/client/dist/index.html"
+      "destination": "/client/dist/$1"
     }
   ],
   "functions": {
