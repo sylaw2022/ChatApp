@@ -511,9 +511,11 @@ app.post('/api/message', async (req, res) => {
         } else if (recipientIdInt) {
             // Send to recipient
             console.log(`📤 Sending message to recipient ${recipientIdInt} from sender ${senderIdInt}`);
-            sendEvent(recipientIdInt, 'receive_message', msg);
+            console.log(`📤 Message data:`, JSON.stringify(msg, null, 2));
+            // Send with both 'message' and 'data' keys for compatibility
+            sendEvent(recipientIdInt, 'receive_message', { message: msg, data: msg });
             // Also send to sender so they see their own message
-            sendEvent(senderIdInt, 'receive_message', msg);
+            sendEvent(senderIdInt, 'receive_message', { message: msg, data: msg });
         }
         res.json({success:true, message: msg});
     } catch (e) {

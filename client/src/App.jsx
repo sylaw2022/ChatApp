@@ -448,24 +448,41 @@ function ChatDashboard({ token, myId, myUsername }) {
         const data = JSON.parse(event.data);
         
         if (data.type === 'receive_message') {
+          console.log('📨 Received SSE message event:', data);
           const newMessage = data.message || data.data;
-          console.log('📨 Received message via SSE:', newMessage);
+          console.log('📨 Extracted message:', newMessage);
+          
           if (newMessage) {
+            // Ensure message has required fields
+            const formattedMessage = {
+              _id: newMessage._id || newMessage.id,
+              id: newMessage.id || newMessage._id,
+              sender: newMessage.sender || { _id: newMessage.sender_id, id: newMessage.sender_id },
+              recipient: newMessage.recipient || newMessage.recipient_id,
+              groupId: newMessage.groupId || newMessage.group_id,
+              content: newMessage.content || '',
+              type: newMessage.type || 'text',
+              fileUrl: newMessage.fileUrl || '',
+              timestamp: newMessage.timestamp || new Date().toISOString()
+            };
+            
+            console.log('📨 Formatted message:', formattedMessage);
+            
             setMessages((prev) => {
               // Avoid duplicates
               const exists = prev.some(m => 
-                (m._id === newMessage._id || m.id === newMessage.id) ||
-                (m._id === newMessage.id || m.id === newMessage._id)
+                (m._id === formattedMessage._id || m.id === formattedMessage.id) ||
+                (m._id === formattedMessage.id || m.id === formattedMessage._id)
               );
               if (exists) {
                 console.log('⚠️ Duplicate message ignored');
                 return prev;
               }
               console.log('✅ Adding new message to list');
-              return [...prev, newMessage];
+              return [...prev, formattedMessage];
             });
           } else {
-            console.warn('⚠️ Received message event but message data is missing');
+            console.warn('⚠️ Received message event but message data is missing. Full event:', data);
           }
         } else if (data.type === 'call_user') {
           setReceivingCall(true);
