@@ -468,91 +468,97 @@ function ChatDashboard({ token, myId, myUsername }) {
           }
         };
 
-    // Handle incoming messages
-    eventSource.onmessage = (event) => {
-      try {
-        console.log('📥 Raw SSE event received:', event.data);
-        const data = JSON.parse(event.data);
-        console.log('📥 Parsed SSE data:', data);
-        
-        if (data.type === 'receive_message') {
-          console.log('📨 Received SSE message event:', data);
-          const newMessage = data.message || data.data;
-          console.log('📨 Extracted message:', newMessage);
-          
-          if (newMessage) {
-            // Ensure message has required fields
-            const formattedMessage = {
-              _id: newMessage._id || newMessage.id,
-              id: newMessage.id || newMessage._id,
-              sender: newMessage.sender || { _id: newMessage.sender_id, id: newMessage.sender_id },
-              recipient: newMessage.recipient || newMessage.recipient_id,
-              groupId: newMessage.groupId || newMessage.group_id,
-              content: newMessage.content || '',
-              type: newMessage.type || 'text',
-              fileUrl: newMessage.fileUrl || '',
-              timestamp: newMessage.timestamp || new Date().toISOString()
-            };
+        // Handle incoming messages
+        eventSource.onmessage = (event) => {
+          try {
+            console.log('📥 Raw SSE event received:', event.data);
+            const data = JSON.parse(event.data);
+            console.log('📥 Parsed SSE data:', data);
             
-            console.log('📨 Formatted message:', formattedMessage);
-            console.log('📨 Current myId:', myId);
-            console.log('📨 Message recipient:', formattedMessage.recipient);
-            console.log('📨 Message sender:', formattedMessage.sender);
-            
-            setMessages((prev) => {
-              // Avoid duplicates
-              const exists = prev.some(m => 
-                (m._id === formattedMessage._id || m.id === formattedMessage.id) ||
-                (m._id === formattedMessage.id || m.id === formattedMessage._id)
-              );
-              if (exists) {
-                console.log('⚠️ Duplicate message ignored');
-                return prev;
+            if (data.type === 'receive_message') {
+              console.log('📨 Received SSE message event:', data);
+              const newMessage = data.message || data.data;
+              console.log('📨 Extracted message:', newMessage);
+              
+              if (newMessage) {
+                // Ensure message has required fields
+                const formattedMessage = {
+                  _id: newMessage._id || newMessage.id,
+                  id: newMessage.id || newMessage._id,
+                  sender: newMessage.sender || { _id: newMessage.sender_id, id: newMessage.sender_id },
+                  recipient: newMessage.recipient || newMessage.recipient_id,
+                  groupId: newMessage.groupId || newMessage.group_id,
+                  content: newMessage.content || '',
+                  type: newMessage.type || 'text',
+                  fileUrl: newMessage.fileUrl || '',
+                  timestamp: newMessage.timestamp || new Date().toISOString()
+                };
+                
+                console.log('📨 Formatted message:', formattedMessage);
+                console.log('📨 Current myId:', myId);
+                console.log('📨 Message recipient:', formattedMessage.recipient);
+                console.log('📨 Message sender:', formattedMessage.sender);
+                
+                setMessages((prev) => {
+                  // Avoid duplicates
+                  const exists = prev.some(m => 
+                    (m._id === formattedMessage._id || m.id === formattedMessage.id) ||
+                    (m._id === formattedMessage.id || m.id === formattedMessage._id)
+                  );
+                  if (exists) {
+                    console.log('⚠️ Duplicate message ignored');
+                    return prev;
+                  }
+                  console.log('✅ Adding new message to list. Previous count:', prev.length, 'New count:', prev.length + 1);
+                  return [...prev, formattedMessage];
+                });
+              } else {
+                console.warn('⚠️ Received message event but message data is missing. Full event:', data);
               }
-              console.log('✅ Adding new message to list. Previous count:', prev.length, 'New count:', prev.length + 1);
-              return [...prev, formattedMessage];
-            });
-          } else {
-            console.warn('⚠️ Received message event but message data is missing. Full event:', data);
+            } else if (data.type === 'call_user') {
+              setReceivingCall(true);
+              setCaller(data.from);
+              setCallerSignal(data.signal);
+              setCallStatus(`${data.name} is calling...`);
+            } else if (data.type === 'call_accepted') {
+              setCallStatus('Call in progress');
+              if (connectionRef.current) {
+                connectionRef.current.setRemoteDescription(new RTCSessionDescription(data.signal));
+              }
+            } else if (data.type === 'ice_candidate') {
+              if (connectionRef.current) {
+                connectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+              }
+            } else if (data.type === 'end_call') {
+              endCallCleanup();
+            } else {
+              console.log('📥 Received non-message SSE event:', data.type);
+            }
+          } catch (err) {
+            console.error('Error parsing SSE message:', err);
           }
-        } else if (data.type === 'call_user') {
-          setReceivingCall(true);
-          setCaller(data.from);
-          setCallerSignal(data.signal);
-          setCallStatus(`${data.name} is calling...`);
-        } else if (data.type === 'call_accepted') {
-          setCallStatus('Call in progress');
-          if (connectionRef.current) {
-            connectionRef.current.setRemoteDescription(new RTCSessionDescription(data.signal));
-          }
-        } else if (data.type === 'ice_candidate') {
-          if (connectionRef.current) {
-            connectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-          }
-        } else if (data.type === 'end_call') {
-          endCallCleanup();
-        } else {
-          console.log('📥 Received non-message SSE event:', data.type);
-        }
+        };
       } catch (err) {
-        console.error('Error parsing SSE message:', err);
+        console.error('Failed to create SSE connection:', err);
+        if (reconnectAttempts < maxReconnectAttempts) {
+          reconnectAttempts++;
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+          reconnectTimeout = setTimeout(() => {
+            connectSSE();
+          }, delay);
+        }
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.error('SSE connection error:', err);
-      // Reconnect after 3 seconds
-      setTimeout(() => {
-        if (eventSourceRef.current) {
-          eventSourceRef.current.close();
-        }
-        // Reconnect will happen automatically via useEffect
-      }, 3000);
-    };
+    connectSSE();
 
     return () => {
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
       if (callPollIntervalRef.current) {
         clearInterval(callPollIntervalRef.current);
