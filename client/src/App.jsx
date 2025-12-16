@@ -809,21 +809,25 @@ function ChatDashboard({ token, myId, myUsername }) {
               }
               
               console.log('📞 RECEIVER: Processing incoming call_user event');
+              console.log('📞 RECEIVER: Full call_user data:', JSON.stringify(data, null, 2));
               
               const callerId = data.from;
+              const callerName = data.name || data.signal?.name || 'Someone';
+              
               // Store caller ID as target for later use when ending call
               callTargetRef.current = callerId;
-              console.log('📞 RECEIVER: Storing caller ID as target:', callerId);
+              console.log('📞 RECEIVER: Storing caller ID as target:', callerId, 'name:', callerName);
               
               // Set refs immediately to prevent race conditions
               receivingCallRef.current = true;
               setReceivingCall(true);
               setCaller(callerId);
               setCallerSignal(data.signal);
-              const statusMessage = `${data.name} is calling...`;
+              const statusMessage = `${callerName} is calling...`;
               setCallStatus(statusMessage);
               console.log('📞 RECEIVER: Call received via SSE, status set to:', statusMessage);
               console.log('📞 RECEIVER: State updated - receivingCall:', true, 'caller:', callerId);
+              console.log('📞 RECEIVER: Call banner should be visible:', { callActive, receivingCall: true, showCallEnding });
             } else if (data.type === 'call_accepted') {
               setCallStatus('Call in progress');
               if (connectionRef.current) {
@@ -1045,21 +1049,25 @@ function ChatDashboard({ token, myId, myUsername }) {
             }
             
             console.log('📞 RECEIVER: Processing incoming call_user event (poll)');
+            console.log('📞 RECEIVER: Full call_user signal:', JSON.stringify(signal, null, 2));
             
             const callerId = signal.data.from;
+            const callerName = signal.data.name || signal.data.signal?.name || 'Someone';
+            
             // Store caller ID as target for later use when ending call
             callTargetRef.current = callerId;
-            console.log('📞 RECEIVER: Storing caller ID as target (poll):', callerId);
+            console.log('📞 RECEIVER: Storing caller ID as target (poll):', callerId, 'name:', callerName);
             
             // Set refs immediately to prevent race conditions
             receivingCallRef.current = true;
             setReceivingCall(true);
             setCaller(callerId);
             setCallerSignal(signal.data.signal);
-            const statusMessage = `${signal.data.name} is calling...`;
+            const statusMessage = `${callerName} is calling...`;
             setCallStatus(statusMessage);
             console.log('📞 RECEIVER: Call received via poll, status set to:', statusMessage);
             console.log('📞 RECEIVER: State updated - receivingCall:', true, 'caller:', callerId);
+            console.log('📞 RECEIVER: Call banner should be visible:', { callActive, receivingCall: true, showCallEnding });
           } else if (signal.type === 'call_accepted') {
             setCallStatus('Call in progress');
             if (connectionRef.current) {
