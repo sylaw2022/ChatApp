@@ -803,17 +803,20 @@ function ChatDashboard({ token, myId, myUsername }) {
               }
             } else if (data.type === 'call_user') {
               // Ignore call_user events if call is already active (already answered or already receiving)
-              // Check state, ref, and connectionRef to handle race conditions
-              const isCallActive = callActive || callActiveRef.current || connectionRef.current !== null;
-              const isAlreadyReceiving = receivingCall || receivingCallRef.current;
+              // Only check state, not refs (refs might be stale). Also check if we have a caller set.
+              // If connectionRef exists, we're in an active call
+              const hasActiveConnection = connectionRef.current !== null;
+              const isCallActive = callActive || hasActiveConnection;
+              const isAlreadyReceiving = receivingCall && caller !== null; // Must have both receivingCall and caller
               
               if (isCallActive || isAlreadyReceiving) {
                 console.log('📞 RECEIVER: Ignoring call_user event - call already active or already receiving', {
                   callActive,
-                  callActiveRef: callActiveRef.current,
                   receivingCall,
-                  receivingCallRef: receivingCallRef.current,
-                  hasConnection: connectionRef.current !== null
+                  caller,
+                  hasConnection: hasActiveConnection,
+                  callActiveRef: callActiveRef.current,
+                  receivingCallRef: receivingCallRef.current
                 });
                 return;
               }
