@@ -820,8 +820,10 @@ function ChatDashboard({ token, myId, myUsername }) {
               setReceivingCall(true);
               setCaller(callerId);
               setCallerSignal(data.signal);
-              setCallStatus(`${data.name} is calling...`);
-              console.log('📞 RECEIVER: Call received via SSE, status set to:', `${data.name} is calling...`);
+              const statusMessage = `${data.name} is calling...`;
+              setCallStatus(statusMessage);
+              console.log('📞 RECEIVER: Call received via SSE, status set to:', statusMessage);
+              console.log('📞 RECEIVER: State updated - receivingCall:', true, 'caller:', callerId);
             } else if (data.type === 'call_accepted') {
               setCallStatus('Call in progress');
               if (connectionRef.current) {
@@ -1049,10 +1051,15 @@ function ChatDashboard({ token, myId, myUsername }) {
             callTargetRef.current = callerId;
             console.log('📞 RECEIVER: Storing caller ID as target (poll):', callerId);
             
+            // Set refs immediately to prevent race conditions
+            receivingCallRef.current = true;
             setReceivingCall(true);
             setCaller(callerId);
             setCallerSignal(signal.data.signal);
-            setCallStatus(`${signal.data.name} is calling...`);
+            const statusMessage = `${signal.data.name} is calling...`;
+            setCallStatus(statusMessage);
+            console.log('📞 RECEIVER: Call received via poll, status set to:', statusMessage);
+            console.log('📞 RECEIVER: State updated - receivingCall:', true, 'caller:', callerId);
           } else if (signal.type === 'call_accepted') {
             setCallStatus('Call in progress');
             if (connectionRef.current) {
