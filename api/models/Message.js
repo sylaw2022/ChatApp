@@ -160,14 +160,17 @@ const Message = {
                 avatar: sender?.avatar || null
             },
             recipient: msg.recipient_id,
+            recipient_id: msg.recipient_id, // Include both formats for compatibility
             groupId: msg.group_id,
+            group_id: msg.group_id, // Include both formats for compatibility
             content: msg.content,
             fileUrl: msg.fileUrl,
             type: msg.type,
             timestamp: msg.timestamp,
             sender_username: sender?.username || null,
             sender_nickname: sender?.nickname || null,
-            sender_avatar: sender?.avatar || null
+            sender_avatar: sender?.avatar || null,
+            sender_id: msg.sender_id // Include sender_id for compatibility
         };
     }
 };
