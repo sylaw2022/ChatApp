@@ -145,23 +145,25 @@ app.get('/api/events', (req, res) => {
         res.flushHeaders();
         
         // Store connection with multiple key formats for maximum compatibility
+        const storedKeys = [];
         clients[userIdStr] = res;
+        storedKeys.push(userIdStr);
         clients[String(userId)] = res;
+        storedKeys.push(String(userId));
         if (typeof userId === 'number') {
             clients[userId] = res;
+            storedKeys.push(userId);
         }
         const userIdInt = typeof userId === 'string' ? parseInt(userId) : userId;
         if (!isNaN(userIdInt)) {
             clients[userIdInt] = res;
+            storedKeys.push(userIdInt);
             clients[String(userIdInt)] = res;
+            storedKeys.push(String(userIdInt));
         }
-        console.log(`📡 SSE connection stored for user ${userIdStr} with keys:`, [
-            userIdStr,
-            String(userId),
-            typeof userId === 'number' ? userId : null,
-            !isNaN(userIdInt) ? userIdInt : null,
-            !isNaN(userIdInt) ? String(userIdInt) : null
-        ].filter(k => k !== null));
+        console.log(`📡 SSE connection stored for user ${userIdStr} (ID type: ${typeof userId}, value: ${userId})`);
+        console.log(`📡 Stored with keys:`, storedKeys);
+        console.log(`📡 All client keys after storage:`, Object.keys(clients));
         console.log(`📡 Total active SSE connections: ${Object.keys(clients).length}`);
         
         console.log(`✅ SSE connection established for user ${userIdStr} (stored with keys: ${Object.keys(clients).filter(k => clients[k] === res).join(', ')})`);
