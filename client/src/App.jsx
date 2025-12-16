@@ -1120,12 +1120,10 @@ function ChatDashboard({ token, myId, myUsername }) {
             console.log('📞 Poll completed (no signals)');
           }
         }
-      } catch (err) {
-        console.error('❌ Error polling calls:', err);
-        console.error('   Error details:', err.response?.data || err.message);
-        // Don't stop polling on error - continue trying
         
-        signals.forEach(signal => {
+        // Process signals
+        if (signals && Array.isArray(signals)) {
+          signals.forEach(signal => {
           if (signal.type === 'call_user') {
             // Only ignore if we're actually in an active call (connection exists) or actively receiving (with caller)
             // Be lenient - allow new calls if previous call ended
@@ -1289,9 +1287,12 @@ function ChatDashboard({ token, myId, myUsername }) {
             console.log(`📞 ${role}: Calling endCallCleanup (poll) with status "${statusMessage}"`);
             endCallCleanup(statusMessage);
           }
-        });
+          });
+        }
       } catch (err) {
-        console.error('Error polling calls:', err);
+        console.error('❌ Error polling calls:', err);
+        console.error('   Error details:', err.response?.data || err.message);
+        // Don't stop polling on error - continue trying
       }
     };
 
