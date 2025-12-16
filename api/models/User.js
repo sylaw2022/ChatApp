@@ -66,7 +66,6 @@ const User = {
         }
         return null;
     },
-
     // Find all
     find: async (query = {}) => {
         let queryBuilder = supabase.from('users').select('*');

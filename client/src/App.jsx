@@ -577,9 +577,14 @@ function ChatDashboard({ token, myId, myUsername }) {
         const isVercel = window.location.hostname.includes('vercel.app') || 
                          window.location.hostname.includes('vercel.com');
         
-        if (isVercel) {
-          console.log('⚠️ Detected Vercel deployment - SSE not supported, using polling only');
-          // Don't attempt SSE on Vercel, rely on polling instead
+        // FOR TESTING: Set to true to force polling mode on local machine
+        // This allows you to test polling functionality without deploying to Vercel
+        const FORCE_POLLING_MODE = true; // Change to false for normal SSE operation
+        
+        if (isVercel || FORCE_POLLING_MODE) {
+          console.log('⚠️ SSE disabled - using polling only', 
+            isVercel ? '(Vercel detected)' : '(FORCE_POLLING_MODE enabled for testing)');
+          // Don't attempt SSE, rely on polling instead
           return;
         }
         
@@ -854,6 +859,55 @@ function ChatDashboard({ token, myId, myUsername }) {
       }
     };
   }, [token]);
+
+  // Poll for messages when SSE is not available
+  useEffect(() => {
+    if (!token || !selectedUser) return;
+    
+    // Only poll for messages if SSE is not available
+    if (eventSourceRef.current && eventSourceRef.current.readyState === EventSource.OPEN) {
+      return; // SSE is working, no need to poll
+    }
+    
+    let lastMessageId = null;
+    const pollMessages = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/api/messages/${myId}/${selectedUser._id || selectedUser.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        const fetchedMessages = response.data || [];
+        if (fetchedMessages.length > 0) {
+          const latestMessage = fetchedMessages[fetchedMessages.length - 1];
+          const latestId = latestMessage.id || latestMessage._id;
+          
+          // Only update if we have a new message
+          if (lastMessageId && latestId !== lastMessageId) {
+            console.log('📨 New message detected via polling:', latestId);
+            setMessages(prev => {
+              // Check if message already exists
+              const exists = prev.some(m => (m.id || m._id) === latestId);
+              if (!exists) {
+                return [...prev, latestMessage];
+              }
+              return prev;
+            });
+          }
+          lastMessageId = latestId;
+        }
+      } catch (err) {
+        console.error('Error polling messages:', err);
+      }
+    };
+    
+    // Poll messages every 3 seconds when SSE is not available
+    const messagePollInterval = setInterval(pollMessages, 3000);
+    console.log('📨 Message polling started (SSE not available)');
+    
+    return () => {
+      clearInterval(messagePollInterval);
+    };
+  }, [token, selectedUser, myId]);
 
   // Poll for call signals (backup method if SSE doesn't work for calls)
   useEffect(() => {
