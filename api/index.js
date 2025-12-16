@@ -411,13 +411,22 @@ const getCallSignals = (userId) => {
         return (now - s.timestamp) < CLEAR_AGE;
     });
     
+    // Debug: Log all signals before filtering to see what's available
+    const allSignalsBeforeFilter = callSignals[uid].map(s => ({
+        type: s.type,
+        read: s.read || false,
+        age: Math.round((now - s.timestamp) / 1000),
+        readAge: s.readAt ? Math.round((now - s.readAt) / 1000) : null
+    }));
+    
     console.log(`📞 Retrieved call signals for user ${uid}:`, {
         beforeFilter,
         afterFilter,
         unread: unreadSignals.length,
         total: callSignals[uid].length,
         signalTypes: unreadSignals.map(s => s.type),
-        ages: unreadSignals.map(s => `${Math.round((now - s.timestamp) / 1000)}s`)
+        ages: unreadSignals.map(s => `${Math.round((now - s.timestamp) / 1000)}s`),
+        allSignalsBeforeFilter: allSignalsBeforeFilter.slice(0, 5) // Show first 5 for debugging
     });
     
     return unreadSignals;
