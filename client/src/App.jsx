@@ -632,10 +632,15 @@ function ChatDashboard({ token, myId, myUsername }) {
 
     // SSE is disabled - we use polling only
     console.log('⚠️ SSE disabled - using polling only (explicitly disabled)');
-    return;
     
-    // The code below is commented out but kept for reference
-    /*
+    return () => {
+      // Cleanup - no SSE connection to close
+      if (callPollIntervalRef.current) {
+        clearInterval(callPollIntervalRef.current);
+      }
+    };
+    
+    /* SSE CODE DISABLED - Using polling only
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
     let reconnectTimeout = null;
@@ -656,7 +661,6 @@ function ChatDashboard({ token, myId, myUsername }) {
           // Don't attempt SSE, rely on polling instead
           return;
         }
-    */
         
         // Connect to SSE endpoint with token as query parameter
         // (EventSource doesn't support custom headers, so we'll use query param)
