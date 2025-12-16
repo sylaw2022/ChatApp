@@ -251,18 +251,29 @@ const sendEvent = (uid, type, data) => {
     let target = null;
     let foundKey = null;
     
-    // Try all possible key formats
+    // Try all possible key formats - be exhaustive
     const keysToTry = [
-        uidStr,
-        String(uidInt),
-        uidInt,
-        parseInt(uidStr, 10)
-    ].filter(k => k !== null && k !== undefined && !isNaN(k));
+        uidStr,                    // "1"
+        String(uidInt),            // "1" (if uidInt is 1)
+        uidInt,                    // 1
+        parseInt(uidStr, 10),       // 1 (if uidStr is "1")
+        String(parseInt(uidStr, 10)) // "1" (converted back)
+    ].filter((k, index, self) => 
+        k !== null && 
+        k !== undefined && 
+        !isNaN(k) && 
+        self.indexOf(k) === index // Remove duplicates
+    );
+    
+    console.log(`🔍 Looking up client for user ${uidStr} (original: ${uid}, type: ${typeof uid})`);
+    console.log(`🔍 Keys to try:`, keysToTry);
+    console.log(`🔍 Available client keys:`, Object.keys(clients));
     
     for (const key of keysToTry) {
         if (clients[key]) {
             target = clients[key];
             foundKey = key;
+            console.log(`✅ Found client using key: ${key} (type: ${typeof key})`);
             break;
         }
     }
