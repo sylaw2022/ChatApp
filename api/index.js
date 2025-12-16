@@ -1077,6 +1077,7 @@ app.get('/api/calls/poll', async (req, res) => {
     try {
         const token = req.headers['authorization']?.split(' ')[1] || req.query.token;
         if (!token) {
+            console.log('📞 Poll request received but no token provided');
             return res.status(401).json({ error: 'Token required' });
         }
         
@@ -1084,11 +1085,19 @@ app.get('/api/calls/poll', async (req, res) => {
         const userId = decoded.id;
         const userIdInt = typeof userId === 'string' ? parseInt(userId) : userId;
         
+        console.log(`📞 Poll request received from user ${userIdInt}`);
+        
         // Get pending signals (with TTL handling)
         const signals = getCallSignals(userIdInt);
         
         if (signals.length > 0) {
-            console.log(`📞 Poll response for user ${userIdInt}: returning ${signals.length} signal(s)`);
+            console.log(`📞 Poll response for user ${userIdInt}: returning ${signals.length} signal(s):`, signals.map(s => s.type));
+        } else {
+            // Log occasionally to confirm polling is working (every 10th poll)
+            const shouldLog = Math.random() < 0.1;
+            if (shouldLog) {
+                console.log(`📞 Poll response for user ${userIdInt}: no signals (polling is active)`);
+            }
         }
         
         res.json(signals);
