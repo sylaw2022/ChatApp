@@ -372,7 +372,7 @@ const getCallSignals = (userId) => {
         return [];
     }
     
-    // Filter out expired signals
+    // Filter out expired signals (keep for 60 seconds)
     const beforeFilter = callSignals[uid].length;
     callSignals[uid] = callSignals[uid].filter(s => (now - s.timestamp) < SIGNAL_TTL);
     const afterFilter = callSignals[uid].length;
@@ -380,15 +380,21 @@ const getCallSignals = (userId) => {
     // Get unread signals only (prevent duplicate processing)
     const unreadSignals = callSignals[uid].filter(s => !s.read);
     
-    // Mark signals as read
+    // Mark signals as read AFTER we return them (so they're available for multiple polls)
+    // But only mark as read if they're not too old
+    const MAX_AGE_FOR_READ = 30000; // 30 seconds - don't mark very old signals as read
     unreadSignals.forEach(s => {
-        s.read = true;
-        s.readAt = now;
+        const age = now - s.timestamp;
+        if (age < MAX_AGE_FOR_READ) {
+            s.read = true;
+            s.readAt = now;
+        }
     });
     
-    // Clear signals that are older than 15 seconds OR were read more than 5 seconds ago
-    const CLEAR_AGE = 15000; // 15 seconds for unread signals
-    const READ_CLEAR_AGE = 5000; // 5 seconds for read signals (give time for processing)
+    // Clear signals that are older than 30 seconds OR were read more than 10 seconds ago
+    // Increased times to account for slower polling or network delays
+    const CLEAR_AGE = 30000; // 30 seconds for unread signals (increased from 15s)
+    const READ_CLEAR_AGE = 10000; // 10 seconds for read signals (increased from 5s)
     callSignals[uid] = callSignals[uid].filter(s => {
         if (s.read) {
             return (now - (s.readAt || s.timestamp)) < READ_CLEAR_AGE;
