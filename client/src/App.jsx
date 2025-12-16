@@ -151,7 +151,7 @@ function App() {
       </div>
 
       {/* Main Content */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', minHeight: 0 }}>
         {view === 'profile' ? (
             <ProfileView token={token} user={user} setUser={setUser} />
         ) : view === 'admin' && user?.role === 'admin' ? (
@@ -1874,7 +1874,14 @@ function ChatDashboard({ token, myId, myUsername }) {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100%', width: '100%', position: 'relative' }}>
+    <div style={{ 
+      display: 'flex', 
+      height: '100%', 
+      width: '100%', 
+      position: 'relative',
+      minHeight: 0,
+      overflow: 'hidden'
+    }}>
       {/* Video/Audio Elements for WebRTC */}
       {isVideoCall && callActive ? (
         <>
@@ -2174,7 +2181,9 @@ function ChatDashboard({ token, myId, myUsername }) {
         width: isMobile && sidebarOpen ? '0' : '100%',
         minWidth: isMobile && sidebarOpen ? '0' : '0',
         overflow: isMobile && sidebarOpen ? 'hidden' : 'visible',
-        position: 'relative'
+        position: 'relative',
+        minHeight: 0,
+        height: '100%'
       }}>
         
         {/* Call Banner */}
@@ -2526,7 +2535,11 @@ function ChatDashboard({ token, myId, myUsername }) {
             background:'#f0f2f5',
             padding: '20px',
             textAlign: 'center',
-            minHeight: '200px'
+            minHeight: '200px',
+            width: '100%',
+            height: '100%',
+            overflow: 'auto',
+            position: 'relative'
           }}>
              <div style={{ fontSize: isMobile ? '3rem' : '4rem', opacity: 0.2, marginBottom: '20px' }}>💬</div>
              <h3 style={{ margin: '10px 0', fontSize: isMobile ? '1.2rem' : '1.5rem' }}>Select a conversation to start chatting</h3>
