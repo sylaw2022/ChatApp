@@ -84,8 +84,8 @@ function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'Arial, sans-serif' }}>
       {/* Header */}
-      <div style={{ background: '#333', color: '#fff', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+      <div style={{ background: '#333', color: '#fff', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: '1 1 auto', minWidth: 0 }}>
           {/* Avatar Icon - Clickable to open profile */}
           <div 
             onClick={() => setView('profile')}
@@ -125,28 +125,28 @@ function App() {
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button 
                 onClick={() => setView('chat')}
-                style={{ background: view === 'chat' ? '#555' : '#007bff', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}
+                style={{ background: view === 'chat' ? '#555' : '#007bff', color: 'white', border: 'none', padding: isMobile ? '10px 12px' : '8px 15px', borderRadius: '5px', cursor: 'pointer', fontSize: isMobile ? '14px' : '16px', minHeight: '44px' }}
             >
                 Chat
             </button>
             <button 
                 onClick={() => setView('profile')}
-                style={{ background: view === 'profile' ? '#555' : '#007bff', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}
+                style={{ background: view === 'profile' ? '#555' : '#007bff', color: 'white', border: 'none', padding: isMobile ? '10px 12px' : '8px 15px', borderRadius: '5px', cursor: 'pointer', fontSize: isMobile ? '14px' : '16px', minHeight: '44px' }}
             >
                 Profile
             </button>
             {user?.role === 'admin' && (
                 <button 
                     onClick={() => setView('admin')}
-                    style={{ background: view === 'admin' ? '#555' : '#007bff', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}
+                    style={{ background: view === 'admin' ? '#555' : '#007bff', color: 'white', border: 'none', padding: isMobile ? '10px 12px' : '8px 15px', borderRadius: '5px', cursor: 'pointer', fontSize: isMobile ? '14px' : '16px', minHeight: '44px' }}
                 >
                     Admin
                 </button>
             )}
-            <button onClick={logout} style={{ background: '#dc3545', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '5px', cursor: 'pointer' }}>Logout</button>
+            <button onClick={logout} style={{ background: '#dc3545', color: 'white', border: 'none', padding: isMobile ? '10px 12px' : '8px 15px', borderRadius: '5px', cursor: 'pointer', fontSize: isMobile ? '14px' : '16px', minHeight: '44px' }}>Logout</button>
         </div>
       </div>
 
@@ -371,6 +371,8 @@ function ChatDashboard({ token, myId, myUsername }) {
   const [groups, setGroups] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // For mobile sidebar toggle
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [activeTab, setActiveTab] = useState('friends'); // 'friends', 'communities', 'all'
@@ -1090,6 +1092,23 @@ function ChatDashboard({ token, myId, myUsername }) {
   useEffect(() => {
     receivingCallRef.current = receivingCall;
   }, [receivingCall]);
+
+  // Handle mobile screen size detection
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      // Auto-close sidebar on mobile when selecting a user
+      if (mobile && selectedUser) {
+        setSidebarOpen(false);
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Initial check
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, [selectedUser]);
 
   // --- DATA FETCHING ---
   useEffect(() => {
@@ -1838,11 +1857,11 @@ function ChatDashboard({ token, myId, myUsername }) {
   const renderMessageContent = (msg) => {
     switch(msg.type) {
         case 'image':
-            return <img src={msg.fileUrl} alt="sent" style={{ maxWidth: '200px', borderRadius: '8px', cursor:'pointer' }} onClick={()=>window.open(msg.fileUrl, '_blank')} />;
+            return <img src={msg.fileUrl} alt="sent" style={{ maxWidth: isMobile ? '100%' : '200px', borderRadius: '8px', cursor:'pointer' }} onClick={()=>window.open(msg.fileUrl, '_blank')} />;
         case 'audio':
-            return <audio controls src={msg.fileUrl} style={{ width: '200px' }} />;
+            return <audio controls src={msg.fileUrl} style={{ width: isMobile ? '100%' : '200px', maxWidth: '200px' }} />;
         case 'video':
-            return <video controls src={msg.fileUrl} style={{ maxWidth: '200px', borderRadius: '8px' }} />;
+            return <video controls src={msg.fileUrl} style={{ maxWidth: isMobile ? '100%' : '200px', borderRadius: '8px' }} />;
         default:
             return <span>{msg.content}</span>;
     }
@@ -1875,8 +1894,8 @@ function ChatDashboard({ token, myId, myUsername }) {
             autoPlay 
             style={{ 
               position: 'absolute', 
-              width: '200px', 
-              height: '150px', 
+              width: isMobile ? '120px' : '200px', 
+              height: isMobile ? '90px' : '150px', 
               bottom: '80px', 
               right: '20px', 
               borderRadius: '12px', 
@@ -1895,7 +1914,22 @@ function ChatDashboard({ token, myId, myUsername }) {
       )}
 
       {/* Sidebar (User List) */}
-      <div style={{ width: '260px', borderRight: '1px solid #ddd', background:'#f8f9fa', display:'flex', flexDirection:'column' }}>
+      <div style={{ 
+        width: isMobile ? (sidebarOpen ? '100%' : '0') : '260px',
+        maxWidth: isMobile ? '100%' : '260px',
+        borderRight: isMobile && !sidebarOpen ? 'none' : '1px solid #ddd',
+        background: '#f8f9fa',
+        display: 'flex',
+        flexDirection: 'column',
+        position: isMobile ? 'absolute' : 'relative',
+        left: isMobile && !sidebarOpen ? '-100%' : '0',
+        top: 0,
+        bottom: 0,
+        zIndex: isMobile ? 1002 : 'auto',
+        transition: 'left 0.3s ease, width 0.3s ease',
+        overflow: isMobile && !sidebarOpen ? 'hidden' : 'visible',
+        boxShadow: isMobile && sidebarOpen ? '2px 0 10px rgba(0,0,0,0.2)' : 'none'
+      }}>
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid #ddd' }}>
           <button 
@@ -2080,8 +2114,47 @@ function ChatDashboard({ token, myId, myUsername }) {
         </div>
       </div>
 
+      {/* Mobile Menu Button */}
+      {isMobile && (
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          style={{
+            position: 'absolute',
+            top: '10px',
+            left: '10px',
+            zIndex: 1003,
+            background: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            padding: '10px 15px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+          }}
+        >
+          {sidebarOpen ? '✕' : '☰'}
+        </button>
+      )}
+
+      {/* Mobile Sidebar Overlay */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 1001
+          }}
+        />
+      )}
+
       {/* Chat Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'white' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'white', width: isMobile && sidebarOpen ? '0' : '100%' }}>
         
         {/* Call Banner */}
         {(callActive || receivingCall || showCallEnding) && (
