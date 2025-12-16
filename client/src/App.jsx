@@ -842,7 +842,16 @@ function ChatDashboard({ token, myId, myUsername }) {
               
               // Set refs immediately to prevent race conditions
               receivingCallRef.current = true;
-              setReceivingCall(true);
+              // Use functional update to ensure state is set correctly
+              setReceivingCall(prev => {
+                if (!prev) {
+                  console.log('📞 RECEIVER: Setting receivingCall to true');
+                  return true;
+                } else {
+                  console.log('📞 RECEIVER: receivingCall already true, keeping it');
+                  return prev;
+                }
+              });
               setCaller(callerId);
               setCallerSignal(data.signal);
               const statusMessage = `${callerName} is calling...`;
@@ -850,6 +859,16 @@ function ChatDashboard({ token, myId, myUsername }) {
               console.log('📞 RECEIVER: Call received via SSE, status set to:', statusMessage);
               console.log('📞 RECEIVER: State updated - receivingCall:', true, 'caller:', callerId);
               console.log('📞 RECEIVER: Call banner should be visible:', { callActive, receivingCall: true, showCallEnding });
+              
+              // Verify state was set after a brief delay
+              setTimeout(() => {
+                console.log('📞 RECEIVER: State verification after SSE:', {
+                  receivingCall,
+                  caller,
+                  callActive,
+                  showCallEnding
+                });
+              }, 100);
             } else if (data.type === 'call_accepted') {
               setCallStatus('Call in progress');
               if (connectionRef.current) {
@@ -1094,7 +1113,16 @@ function ChatDashboard({ token, myId, myUsername }) {
             
             // Set refs immediately to prevent race conditions
             receivingCallRef.current = true;
-            setReceivingCall(true);
+            // Use functional update to ensure state is set correctly
+            setReceivingCall(prev => {
+              if (!prev) {
+                console.log('📞 RECEIVER: Setting receivingCall to true (poll)');
+                return true;
+              } else {
+                console.log('📞 RECEIVER: receivingCall already true, keeping it (poll)');
+                return prev;
+              }
+            });
             setCaller(callerId);
             setCallerSignal(signal.data.signal);
             const statusMessage = `${callerName} is calling...`;
@@ -1102,6 +1130,16 @@ function ChatDashboard({ token, myId, myUsername }) {
             console.log('📞 RECEIVER: Call received via poll, status set to:', statusMessage);
             console.log('📞 RECEIVER: State updated - receivingCall:', true, 'caller:', callerId);
             console.log('📞 RECEIVER: Call banner should be visible:', { callActive, receivingCall: true, showCallEnding });
+            
+            // Verify state was set after a brief delay
+            setTimeout(() => {
+              console.log('📞 RECEIVER: State verification after poll:', {
+                receivingCall,
+                caller,
+                callActive,
+                showCallEnding
+              });
+            }, 100);
           } else if (signal.type === 'call_accepted') {
             setCallStatus('Call in progress');
             if (connectionRef.current) {
