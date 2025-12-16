@@ -792,28 +792,36 @@ function ChatDashboard({ token, myId, myUsername }) {
                 console.warn('⚠️ Received message event but message data is missing. Full event:', data);
               }
             } else if (data.type === 'call_user') {
-              // Ignore call_user events if call is already active (already answered)
+              // Ignore call_user events if call is already active (already answered or already receiving)
               // Check state, ref, and connectionRef to handle race conditions
               const isCallActive = callActive || callActiveRef.current || connectionRef.current !== null;
-              if (isCallActive || !receivingCall) {
-                console.log('📞 RECEIVER: Ignoring call_user event - call already active', {
+              const isAlreadyReceiving = receivingCall || receivingCallRef.current;
+              
+              if (isCallActive || isAlreadyReceiving) {
+                console.log('📞 RECEIVER: Ignoring call_user event - call already active or already receiving', {
                   callActive,
                   callActiveRef: callActiveRef.current,
                   receivingCall,
+                  receivingCallRef: receivingCallRef.current,
                   hasConnection: connectionRef.current !== null
                 });
                 return;
               }
+              
+              console.log('📞 RECEIVER: Processing incoming call_user event');
               
               const callerId = data.from;
               // Store caller ID as target for later use when ending call
               callTargetRef.current = callerId;
               console.log('📞 RECEIVER: Storing caller ID as target:', callerId);
               
+              // Set refs immediately to prevent race conditions
+              receivingCallRef.current = true;
               setReceivingCall(true);
               setCaller(callerId);
               setCallerSignal(data.signal);
               setCallStatus(`${data.name} is calling...`);
+              console.log('📞 RECEIVER: Call received via SSE, status set to:', `${data.name} is calling...`);
             } else if (data.type === 'call_accepted') {
               setCallStatus('Call in progress');
               if (connectionRef.current) {
@@ -1018,18 +1026,23 @@ function ChatDashboard({ token, myId, myUsername }) {
         
         signals.forEach(signal => {
           if (signal.type === 'call_user') {
-            // Ignore call_user events if call is already active (already answered)
+            // Ignore call_user events if call is already active (already answered or already receiving)
             // Check state, ref, and connectionRef to handle race conditions
             const isCallActive = callActive || callActiveRef.current || connectionRef.current !== null;
-            if (isCallActive || !receivingCall) {
-              console.log('📞 RECEIVER: Ignoring call_user event (poll) - call already active', {
+            const isAlreadyReceiving = receivingCall || receivingCallRef.current;
+            
+            if (isCallActive || isAlreadyReceiving) {
+              console.log('📞 RECEIVER: Ignoring call_user event (poll) - call already active or already receiving', {
                 callActive,
                 callActiveRef: callActiveRef.current,
                 receivingCall,
+                receivingCallRef: receivingCallRef.current,
                 hasConnection: connectionRef.current !== null
               });
               return;
             }
+            
+            console.log('📞 RECEIVER: Processing incoming call_user event (poll)');
             
             const callerId = signal.data.from;
             // Store caller ID as target for later use when ending call
