@@ -998,12 +998,21 @@ function ChatDashboard({ token, myId, myUsername }) {
   useEffect(() => {
     if (!token || !selectedUser) return;
     
-    // Only poll for messages if SSE is not available
-    if (eventSourceRef.current && eventSourceRef.current.readyState === EventSource.OPEN) {
-      return; // SSE is working, no need to poll
+    // Check if SSE is available - if not, we MUST use polling
+    const isVercel = window.location.hostname.includes('vercel.app') || 
+                     window.location.hostname.includes('vercel.com');
+    const FORCE_POLLING_MODE = false; // Set to true for local testing
+    const sseAvailable = eventSourceRef.current && 
+                         eventSourceRef.current.readyState === EventSource.OPEN;
+    
+    // Only poll if SSE is not available (Vercel or forced polling mode)
+    if (sseAvailable && !isVercel && !FORCE_POLLING_MODE) {
+      console.log('📨 SSE available, skipping message polling');
+      return;
     }
     
-    let lastMessageId = null;
+    console.log('📨 Starting message polling (SSE not available or on Vercel)');
+    
     const pollMessages = async () => {
       try {
         const response = await axios.get(`${API_URL}/api/messages/${myId}/${selectedUser._id || selectedUser.id}`, {
@@ -1012,31 +1021,52 @@ function ChatDashboard({ token, myId, myUsername }) {
         
         const fetchedMessages = response.data || [];
         if (fetchedMessages.length > 0) {
-          const latestMessage = fetchedMessages[fetchedMessages.length - 1];
-          const latestId = latestMessage.id || latestMessage._id;
+          console.log(`📨 Polled ${fetchedMessages.length} message(s) for conversation`);
           
-          // Only update if we have a new message
-          if (lastMessageId && latestId !== lastMessageId) {
-            console.log('📨 New message detected via polling:', latestId);
-            setMessages(prev => {
-              // Check if message already exists
-              const exists = prev.some(m => (m.id || m._id) === latestId);
-              if (!exists) {
-                return [...prev, latestMessage];
-              }
-              return prev;
+          // Merge with existing messages, avoiding duplicates
+          setMessages(prev => {
+            // Create a Map to track messages by ID for efficient lookup
+            const messageMap = new Map();
+            
+            // Add existing messages to map
+            prev.forEach(msg => {
+              const msgId = msg.id || msg._id;
+              if (msgId) messageMap.set(String(msgId), msg);
             });
-          }
-          lastMessageId = latestId;
+            
+            // Add/update fetched messages
+            fetchedMessages.forEach(msg => {
+              const msgId = msg.id || msg._id;
+              if (msgId) {
+                const existing = messageMap.get(String(msgId));
+                if (!existing) {
+                  console.log(`📨 New message detected via polling: ${msgId}`);
+                }
+                messageMap.set(String(msgId), msg);
+              }
+            });
+            
+            // Convert map back to array and sort by timestamp
+            const merged = Array.from(messageMap.values());
+            merged.sort((a, b) => {
+              const timeA = new Date(a.timestamp || 0).getTime();
+              const timeB = new Date(b.timestamp || 0).getTime();
+              return timeA - timeB;
+            });
+            
+            return merged;
+          });
         }
       } catch (err) {
         console.error('Error polling messages:', err);
       }
     };
     
-    // Poll messages every 3 seconds when SSE is not available
-    const messagePollInterval = setInterval(pollMessages, 3000);
-    console.log('📨 Message polling started (SSE not available)');
+    // Poll messages every 2 seconds when SSE is not available (faster than 3s for better responsiveness)
+    const messagePollInterval = setInterval(pollMessages, 2000);
+    
+    // Poll immediately on mount
+    pollMessages();
     
     return () => {
       clearInterval(messagePollInterval);
