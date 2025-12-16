@@ -204,19 +204,24 @@ app.get('/api/events', (req, res) => {
         });
         
         req.on('error', (err) => {
-            console.error('SSE request error:', err);
+            console.error(`❌ SSE request error for user ${userIdStr}:`, err);
             clearInterval(keepAlive);
-            // Clean up connections
-            delete clients[userIdStr];
-            delete clients[String(userId)];
+            // Clean up connections - remove ALL possible key formats
+            const keysToDelete = [userIdStr, String(userId)];
             if (typeof userId === 'number') {
-                delete clients[userId];
+                keysToDelete.push(userId);
             }
             const userIdInt = typeof userId === 'string' ? parseInt(userId) : userId;
             if (!isNaN(userIdInt)) {
-                delete clients[userIdInt];
-                delete clients[String(userIdInt)];
+                keysToDelete.push(userIdInt, String(userIdInt));
             }
+            keysToDelete.forEach(key => {
+                if (clients[key]) {
+                    delete clients[key];
+                    console.log(`   Deleted client key due to error: ${key} (type: ${typeof key})`);
+                }
+            });
+            console.log(`❌ SSE error cleanup complete. Remaining clients:`, Object.keys(clients));
         });
     } catch (e) { 
         console.error('SSE connection error:', e);
