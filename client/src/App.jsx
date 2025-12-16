@@ -1005,9 +1005,19 @@ function ChatDashboard({ token, myId, myUsername }) {
     const sseAvailable = eventSourceRef.current && 
                          eventSourceRef.current.readyState === EventSource.OPEN;
     
+    console.log('📨 Message polling check:', {
+      isVercel,
+      FORCE_POLLING_MODE,
+      sseAvailable,
+      sseState: eventSourceRef.current?.readyState,
+      hasEventSource: !!eventSourceRef.current,
+      willPoll: !sseAvailable || isVercel || FORCE_POLLING_MODE
+    });
+    
     // Only poll if SSE is not available (Vercel or forced polling mode)
+    // EventSource.readyState: 0 = CONNECTING, 1 = OPEN, 2 = CLOSED
     if (sseAvailable && !isVercel && !FORCE_POLLING_MODE) {
-      console.log('📨 SSE available, skipping message polling');
+      console.log('📨 SSE available (state: OPEN), skipping message polling');
       return;
     }
     
