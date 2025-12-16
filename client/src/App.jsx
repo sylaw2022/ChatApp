@@ -443,6 +443,7 @@ function ChatDashboard({ token, myId, myUsername }) {
   const callPollIntervalRef = useRef(null);
   const callActiveRef = useRef(false);
   const receivingCallRef = useRef(false);
+  const processedCallSignalsRef = useRef(new Set()); // Track processed call signals to prevent duplicates
 
   // WebRTC ICE Servers configuration
   // STUN servers help discover public IP, TURN servers relay traffic when direct connection fails
@@ -598,6 +599,7 @@ function ChatDashboard({ token, myId, myUsername }) {
       setShowCallEnding(false);
       callEndedIntentionallyRef.current = false; // Reset flag
       callTargetRef.current = null; // Clear stored target
+      processedCallSignalsRef.current.clear(); // Clear processed signals
       console.log('📞 Refs reset - ready for new calls');
       
       // Stop local stream tracks
@@ -1101,10 +1103,20 @@ function ChatDashboard({ token, myId, myUsername }) {
             // If we get here, we should process the call
             console.log('📞 RECEIVER: ✅ Will process call_user event (poll) - no active call detected');
             
-            console.log('📞 RECEIVER: Processing incoming call_user event (poll)');
+            const callerId = signal.data.from;
+            const signalId = `call_user_${callerId}_${signal.data.signal?.type || 'offer'}_${signal.data.signal?.sdp?.substring(0, 20) || ''}`;
+            
+            // Check if we've already processed this exact signal
+            if (processedCallSignalsRef.current.has(signalId)) {
+              console.log('📞 RECEIVER: Ignoring duplicate call_user signal (poll):', signalId);
+              return;
+            }
+            
+            // Mark as processed
+            processedCallSignalsRef.current.add(signalId);
+            console.log('📞 RECEIVER: Processing incoming call_user event (poll) - new signal');
             console.log('📞 RECEIVER: Full call_user signal:', JSON.stringify(signal, null, 2));
             
-            const callerId = signal.data.from;
             const callerName = signal.data.name || signal.data.signal?.name || 'Someone';
             
             // Store caller ID as target for later use when ending call
@@ -1140,6 +1152,12 @@ function ChatDashboard({ token, myId, myUsername }) {
                 showCallEnding
               });
             }, 100);
+            
+            // Clean up old processed signals (keep last 10)
+            if (processedCallSignalsRef.current.size > 10) {
+              const signalsArray = Array.from(processedCallSignalsRef.current);
+              processedCallSignalsRef.current = new Set(signalsArray.slice(-10));
+            }
           } else if (signal.type === 'call_accepted') {
             setCallStatus('Call in progress');
             if (connectionRef.current) {
