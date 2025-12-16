@@ -626,9 +626,16 @@ function ChatDashboard({ token, myId, myUsername }) {
   };
 
   // --- SERVER-SENT EVENTS (SSE) CONNECTION ---
+  // DISABLED: Using polling only for reliability
   useEffect(() => {
     if (!token) return;
 
+    // SSE is disabled - we use polling only
+    console.log('⚠️ SSE disabled - using polling only (explicitly disabled)');
+    return;
+    
+    // The code below is commented out but kept for reference
+    /*
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
     let reconnectTimeout = null;
@@ -641,7 +648,7 @@ function ChatDashboard({ token, myId, myUsername }) {
         
         // FOR TESTING: Set to true to force polling mode on local machine
         // This allows you to test polling functionality without deploying to Vercel
-        const FORCE_POLLING_MODE = false; // Change to false for normal SSE operation
+        const FORCE_POLLING_MODE = true; // Change to false for normal SSE operation
         
         if (isVercel || FORCE_POLLING_MODE) {
           console.log('⚠️ SSE disabled - using polling only', 
@@ -649,6 +656,7 @@ function ChatDashboard({ token, myId, myUsername }) {
           // Don't attempt SSE, rely on polling instead
           return;
         }
+    */
         
         // Connect to SSE endpoint with token as query parameter
         // (EventSource doesn't support custom headers, so we'll use query param)
@@ -1088,28 +1096,8 @@ function ChatDashboard({ token, myId, myUsername }) {
   useEffect(() => {
     if (!token) return;
 
-    // Check if SSE is available - if not, we MUST use polling
-    const isVercel = window.location.hostname.includes('vercel.app') || 
-                     window.location.hostname.includes('vercel.com');
-    const FORCE_POLLING_MODE = false; // Set to true for local testing
-    const sseAvailable = eventSourceRef.current && 
-                         eventSourceRef.current.readyState === EventSource.OPEN;
-    
-    console.log('📞 Call polling check:', {
-      isVercel,
-      FORCE_POLLING_MODE,
-      sseAvailable,
-      sseState: eventSourceRef.current?.readyState,
-      willPoll: !sseAvailable || isVercel || FORCE_POLLING_MODE
-    });
-    
-    // Only poll if SSE is not available (Vercel or forced polling mode)
-    if (sseAvailable && !isVercel && !FORCE_POLLING_MODE) {
-      console.log('📞 SSE available, skipping call polling');
-      return;
-    }
-
-    console.log('📞 Starting call polling (SSE not available or on Vercel)');
+    // SSE is disabled - always use polling
+    console.log('📞 Starting call polling (SSE disabled, using polling only)');
 
     const pollCalls = async () => {
       try {
