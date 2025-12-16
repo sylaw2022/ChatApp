@@ -394,6 +394,8 @@ function ChatDashboard({ token, myId, myUsername }) {
   const connectionRef = useRef();
   const messagesEndRef = useRef(null); // For auto-scrolling
   const callPollIntervalRef = useRef(null);
+  const callActiveRef = useRef(false);
+  const receivingCallRef = useRef(false);
 
   // WebRTC ICE Servers configuration
   // STUN servers help discover public IP, TURN servers relay traffic when direct connection fails
@@ -579,7 +581,7 @@ function ChatDashboard({ token, myId, myUsername }) {
         
         // FOR TESTING: Set to true to force polling mode on local machine
         // This allows you to test polling functionality without deploying to Vercel
-        const FORCE_POLLING_MODE = true; // Change to false for normal SSE operation
+        const FORCE_POLLING_MODE = false; // Change to false for normal SSE operation
         
         if (isVercel || FORCE_POLLING_MODE) {
           console.log('⚠️ SSE disabled - using polling only', 
@@ -910,8 +912,24 @@ function ChatDashboard({ token, myId, myUsername }) {
   }, [token, selectedUser, myId]);
 
   // Poll for call signals (backup method if SSE doesn't work for calls)
+  // This is critical for Vercel deployment where SSE doesn't work
   useEffect(() => {
     if (!token) return;
+
+    // Check if SSE is available - if not, we MUST use polling
+    const isVercel = window.location.hostname.includes('vercel.app') || 
+                     window.location.hostname.includes('vercel.com');
+    const FORCE_POLLING_MODE = false; // Set to true for local testing
+    const sseAvailable = eventSourceRef.current && 
+                         eventSourceRef.current.readyState === EventSource.OPEN;
+    
+    // Only poll if SSE is not available (Vercel or forced polling mode)
+    if (sseAvailable && !isVercel && !FORCE_POLLING_MODE) {
+      console.log('📞 SSE available, skipping call polling');
+      return;
+    }
+
+    console.log('📞 Starting call polling (SSE not available)');
 
     const pollCalls = async () => {
       try {
@@ -920,6 +938,10 @@ function ChatDashboard({ token, myId, myUsername }) {
         });
         
         const signals = response.data;
+        if (signals && signals.length > 0) {
+          console.log(`📞 Polled ${signals.length} call signal(s)`);
+        }
+        
         signals.forEach(signal => {
           if (signal.type === 'call_user') {
             const callerId = signal.data.from;
@@ -950,6 +972,7 @@ function ChatDashboard({ token, myId, myUsername }) {
               }
               try {
                 connectionRef.current.addIceCandidate(new RTCIceCandidate(signal.data));
+                console.log('📞 ICE candidate added via polling');
               } catch (err) {
                 console.error('❌ Error adding ICE candidate:', err, 'Candidate:', signal.data);
               }
@@ -1011,15 +1034,48 @@ function ChatDashboard({ token, myId, myUsername }) {
       }
     };
 
-    // Poll every 2 seconds
-    callPollIntervalRef.current = setInterval(pollCalls, 2000);
+    // Dynamic polling interval: faster during active calls (500ms), slower otherwise (2s)
+    // This ensures WebRTC signaling is fast enough for ICE candidates
+    const updatePollInterval = () => {
+      if (callPollIntervalRef.current) {
+        clearInterval(callPollIntervalRef.current);
+      }
+      
+      // Poll faster when call is active or receiving (use refs to get latest values)
+      const interval = (callActiveRef.current || receivingCallRef.current) ? 500 : 2000;
+      console.log(`📞 Setting call polling interval to ${interval}ms (callActive: ${callActiveRef.current}, receivingCall: ${receivingCallRef.current})`);
+      callPollIntervalRef.current = setInterval(pollCalls, interval);
+    };
+
+    // Initial poll
+    pollCalls();
+    
+    // Set initial interval
+    updatePollInterval();
+
+    // Update interval when call state changes (check every second)
+    const intervalCheck = setInterval(() => {
+      updatePollInterval();
+    }, 1000);
 
     return () => {
       if (callPollIntervalRef.current) {
         clearInterval(callPollIntervalRef.current);
       }
+      if (intervalCheck) {
+        clearInterval(intervalCheck);
+      }
     };
   }, [token]);
+
+  // Sync call state refs with state values for polling interval adjustment
+  useEffect(() => {
+    callActiveRef.current = callActive;
+  }, [callActive]);
+
+  useEffect(() => {
+    receivingCallRef.current = receivingCall;
+  }, [receivingCall]);
 
   // --- DATA FETCHING ---
   useEffect(() => {
