@@ -573,6 +573,16 @@ function ChatDashboard({ token, myId, myUsername }) {
 
     const connectSSE = () => {
       try {
+        // Detect if we're on Vercel (serverless) - SSE doesn't work there
+        const isVercel = window.location.hostname.includes('vercel.app') || 
+                         window.location.hostname.includes('vercel.com');
+        
+        if (isVercel) {
+          console.log('⚠️ Detected Vercel deployment - SSE not supported, using polling only');
+          // Don't attempt SSE on Vercel, rely on polling instead
+          return;
+        }
+        
         // Connect to SSE endpoint with token as query parameter
         // (EventSource doesn't support custom headers, so we'll use query param)
         // Use relative path in development to go through Vite proxy, absolute in production
@@ -593,6 +603,15 @@ function ChatDashboard({ token, myId, myUsername }) {
           console.error('❌ SSE connection error:', err);
           console.error('   EventSource readyState:', eventSource.readyState);
           console.error('   EventSource URL:', eventSource.url);
+          
+          // If SSE fails (e.g., on Vercel), close and rely on polling
+          if (eventSource.readyState === EventSource.CLOSED) {
+            console.log('⚠️ SSE connection closed - will rely on polling for real-time updates');
+            if (eventSourceRef.current) {
+              eventSourceRef.current.close();
+              eventSourceRef.current = null;
+            }
+          }
           
           // EventSource.readyState: 0 = CONNECTING, 1 = OPEN, 2 = CLOSED
           if (eventSource.readyState === EventSource.CLOSED) {

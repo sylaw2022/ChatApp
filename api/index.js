@@ -91,8 +91,22 @@ console.log('SQLite database ready');
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
 // --- SSE SETUP ---
+// Note: SSE doesn't work reliably on Vercel serverless functions
+// Vercel functions have execution time limits and can't maintain long-lived connections
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+
 let clients = {}; 
 app.get('/api/events', (req, res) => {
+    // On Vercel, SSE doesn't work - return error to trigger polling fallback
+    if (isVercel) {
+        console.log('⚠️ SSE not supported on Vercel - client should use polling');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        return res.status(503).json({ 
+            error: 'SSE not available on serverless platform',
+            usePolling: true 
+        });
+    }
+    
     const token = req.query.token;
     if (!token) {
         console.error('SSE connection rejected: No token provided');
