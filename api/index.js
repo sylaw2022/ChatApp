@@ -378,14 +378,23 @@ const getCallSignals = (userId) => {
     const afterFilter = callSignals[uid].length;
     
     // Get unread signals only (prevent duplicate processing)
-    const unreadSignals = callSignals[uid].filter(s => !s.read);
+    // IMPORTANT: Don't filter by read status yet - we'll mark as read after returning
+    const unreadSignals = callSignals[uid].filter(s => {
+        // Only return signals that are not marked as read
+        // OR signals that were read very recently (within 2 seconds) to handle rapid polls
+        if (s.read) {
+            const readAge = now - (s.readAt || s.timestamp);
+            return readAge < 2000; // Allow recently read signals to be returned again (for rapid polls)
+        }
+        return true; // Return all unread signals
+    });
     
     // Mark signals as read AFTER we return them (so they're available for multiple polls)
     // But only mark as read if they're not too old
     const MAX_AGE_FOR_READ = 30000; // 30 seconds - don't mark very old signals as read
     unreadSignals.forEach(s => {
         const age = now - s.timestamp;
-        if (age < MAX_AGE_FOR_READ) {
+        if (age < MAX_AGE_FOR_READ && !s.read) {
             s.read = true;
             s.readAt = now;
         }
