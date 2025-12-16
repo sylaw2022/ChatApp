@@ -802,24 +802,33 @@ function ChatDashboard({ token, myId, myUsername }) {
                 console.warn('⚠️ Received message event but message data is missing. Full event:', data);
               }
             } else if (data.type === 'call_user') {
-              // Ignore call_user events if call is already active (already answered or already receiving)
-              // Only check state, not refs (refs might be stale). Also check if we have a caller set.
-              // If connectionRef exists, we're in an active call
-              const hasActiveConnection = connectionRef.current !== null;
-              const isCallActive = callActive || hasActiveConnection;
-              const isAlreadyReceiving = receivingCall && caller !== null; // Must have both receivingCall and caller
+              // Only ignore if we're actually in an active call (connection exists) or actively receiving (with caller)
+              // Be lenient - allow new calls if previous call ended
+              const hasActiveConnection = connectionRef.current !== null && callActive;
+              const isActuallyReceiving = receivingCall && caller !== null && !callActive;
               
-              if (isCallActive || isAlreadyReceiving) {
-                console.log('📞 RECEIVER: Ignoring call_user event - call already active or already receiving', {
-                  callActive,
-                  receivingCall,
-                  caller,
-                  hasConnection: hasActiveConnection,
-                  callActiveRef: callActiveRef.current,
-                  receivingCallRef: receivingCallRef.current
-                });
+              console.log('📞 RECEIVER: Checking if should process call_user event:', {
+                callActive,
+                receivingCall,
+                caller,
+                hasConnection: connectionRef.current !== null,
+                hasActiveConnection,
+                isActuallyReceiving,
+                callStatus
+              });
+              
+              if (hasActiveConnection) {
+                console.log('📞 RECEIVER: Ignoring - active call in progress');
                 return;
               }
+              
+              if (isActuallyReceiving) {
+                console.log('📞 RECEIVER: Ignoring - already receiving a call');
+                return;
+              }
+              
+              // If we get here, we should process the call
+              console.log('📞 RECEIVER: ✅ Will process call_user event - no active call detected');
               
               console.log('📞 RECEIVER: Processing incoming call_user event');
               console.log('📞 RECEIVER: Full call_user data:', JSON.stringify(data, null, 2));
@@ -1045,24 +1054,33 @@ function ChatDashboard({ token, myId, myUsername }) {
         
         signals.forEach(signal => {
           if (signal.type === 'call_user') {
-            // Ignore call_user events if call is already active (already answered or already receiving)
-            // Only check state, not refs (refs might be stale). Also check if we have a caller set.
-            // If connectionRef exists, we're in an active call
-            const hasActiveConnection = connectionRef.current !== null;
-            const isCallActive = callActive || hasActiveConnection;
-            const isAlreadyReceiving = receivingCall && caller !== null; // Must have both receivingCall and caller
+            // Only ignore if we're actually in an active call (connection exists) or actively receiving (with caller)
+            // Be lenient - allow new calls if previous call ended
+            const hasActiveConnection = connectionRef.current !== null && callActive;
+            const isActuallyReceiving = receivingCall && caller !== null && !callActive;
             
-            if (isCallActive || isAlreadyReceiving) {
-              console.log('📞 RECEIVER: Ignoring call_user event (poll) - call already active or already receiving', {
-                callActive,
-                receivingCall,
-                caller,
-                hasConnection: hasActiveConnection,
-                callActiveRef: callActiveRef.current,
-                receivingCallRef: receivingCallRef.current
-              });
+            console.log('📞 RECEIVER: Checking if should process call_user event (poll):', {
+              callActive,
+              receivingCall,
+              caller,
+              hasConnection: connectionRef.current !== null,
+              hasActiveConnection,
+              isActuallyReceiving,
+              callStatus
+            });
+            
+            if (hasActiveConnection) {
+              console.log('📞 RECEIVER: Ignoring (poll) - active call in progress');
               return;
             }
+            
+            if (isActuallyReceiving) {
+              console.log('📞 RECEIVER: Ignoring (poll) - already receiving a call');
+              return;
+            }
+            
+            // If we get here, we should process the call
+            console.log('📞 RECEIVER: ✅ Will process call_user event (poll) - no active call detected');
             
             console.log('📞 RECEIVER: Processing incoming call_user event (poll)');
             console.log('📞 RECEIVER: Full call_user signal:', JSON.stringify(signal, null, 2));
