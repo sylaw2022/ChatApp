@@ -343,7 +343,7 @@ const addCallSignal = (userId, signal) => {
 
 // Helper to get and clear call signals for a user
 // On Vercel, we keep signals for 60 seconds to account for serverless function cold starts
-// Signals are NOT cleared immediately - they're kept for multiple polls to handle different function instances
+// Signals are marked as "read" after first retrieval to prevent duplicate processing
 const getCallSignals = (userId) => {
     const uid = String(userId);
     const now = Date.now();
@@ -359,23 +359,35 @@ const getCallSignals = (userId) => {
     callSignals[uid] = callSignals[uid].filter(s => (now - s.timestamp) < SIGNAL_TTL);
     const afterFilter = callSignals[uid].length;
     
-    // Return all non-expired signals (don't clear immediately - allow multiple polls)
-    const signals = [...callSignals[uid]];
+    // Get unread signals only (prevent duplicate processing)
+    const unreadSignals = callSignals[uid].filter(s => !s.read);
     
-    // Only clear signals that are older than 15 seconds (give receiver multiple chances to poll)
-    const CLEAR_AGE = 15000; // 15 seconds
-    callSignals[uid] = callSignals[uid].filter(s => (now - s.timestamp) < CLEAR_AGE);
+    // Mark signals as read
+    unreadSignals.forEach(s => {
+        s.read = true;
+        s.readAt = now;
+    });
+    
+    // Clear signals that are older than 15 seconds OR were read more than 5 seconds ago
+    const CLEAR_AGE = 15000; // 15 seconds for unread signals
+    const READ_CLEAR_AGE = 5000; // 5 seconds for read signals (give time for processing)
+    callSignals[uid] = callSignals[uid].filter(s => {
+        if (s.read) {
+            return (now - (s.readAt || s.timestamp)) < READ_CLEAR_AGE;
+        }
+        return (now - s.timestamp) < CLEAR_AGE;
+    });
     
     console.log(`📞 Retrieved call signals for user ${uid}:`, {
         beforeFilter,
         afterFilter,
-        returned: signals.length,
-        remaining: callSignals[uid].length,
-        signalTypes: signals.map(s => s.type),
-        ages: signals.map(s => `${Math.round((now - s.timestamp) / 1000)}s`)
+        unread: unreadSignals.length,
+        total: callSignals[uid].length,
+        signalTypes: unreadSignals.map(s => s.type),
+        ages: unreadSignals.map(s => `${Math.round((now - s.timestamp) / 1000)}s`)
     });
     
-    return signals;
+    return unreadSignals;
 };
 
 // --- FILE UPLOAD ROUTES (UPDATED) ---
