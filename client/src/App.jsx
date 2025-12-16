@@ -793,12 +793,14 @@ function ChatDashboard({ token, myId, myUsername }) {
               }
             } else if (data.type === 'call_user') {
               // Ignore call_user events if call is already active (already answered)
-              // Check both state and ref to handle race conditions
-              if (callActive || callActiveRef.current || !receivingCall) {
+              // Check state, ref, and connectionRef to handle race conditions
+              const isCallActive = callActive || callActiveRef.current || connectionRef.current !== null;
+              if (isCallActive || !receivingCall) {
                 console.log('📞 RECEIVER: Ignoring call_user event - call already active', {
                   callActive,
                   callActiveRef: callActiveRef.current,
-                  receivingCall
+                  receivingCall,
+                  hasConnection: connectionRef.current !== null
                 });
                 return;
               }
@@ -1017,12 +1019,14 @@ function ChatDashboard({ token, myId, myUsername }) {
         signals.forEach(signal => {
           if (signal.type === 'call_user') {
             // Ignore call_user events if call is already active (already answered)
-            // Check both state and ref to handle race conditions
-            if (callActive || callActiveRef.current || !receivingCall) {
+            // Check state, ref, and connectionRef to handle race conditions
+            const isCallActive = callActive || callActiveRef.current || connectionRef.current !== null;
+            if (isCallActive || !receivingCall) {
               console.log('📞 RECEIVER: Ignoring call_user event (poll) - call already active', {
                 callActive,
                 callActiveRef: callActiveRef.current,
-                receivingCall
+                receivingCall,
+                hasConnection: connectionRef.current !== null
               });
               return;
             }
