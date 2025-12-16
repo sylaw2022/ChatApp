@@ -1220,11 +1220,29 @@ function ChatDashboard({ token, myId, myUsername }) {
   // Sync call state refs with state values for polling interval adjustment
   useEffect(() => {
     callActiveRef.current = callActive;
+    console.log('📞 State changed: callActive =', callActive);
   }, [callActive]);
 
   useEffect(() => {
     receivingCallRef.current = receivingCall;
-  }, [receivingCall]);
+    console.log('📞 State changed: receivingCall =', receivingCall, 'caller =', caller);
+  }, [receivingCall, caller]);
+
+  useEffect(() => {
+    console.log('📞 State changed: showCallEnding =', showCallEnding);
+  }, [showCallEnding]);
+
+  // Debug: Log when answer button visibility would change
+  useEffect(() => {
+    const shouldShowAnswer = receivingCall && !callActive && !showCallEnding;
+    console.log('📞 Answer button visibility check:', {
+      shouldShowAnswer,
+      receivingCall,
+      callActive,
+      showCallEnding,
+      caller
+    });
+  }, [receivingCall, callActive, showCallEnding, caller]);
 
   // Handle mobile screen size detection
   useEffect(() => {
@@ -2347,7 +2365,19 @@ function ChatDashboard({ token, myId, myUsername }) {
               <span style={{ fontWeight: 'bold', fontSize: '1.1em' }}>{callStatus}</span>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
-              {receivingCall && !callActive && !showCallEnding && (
+              {(() => {
+                const shouldShowAnswer = receivingCall && !callActive && !showCallEnding;
+                if (!shouldShowAnswer && (callActive || receivingCall || showCallEnding)) {
+                  console.log('📞 RECEIVER: Answer button hidden. State:', {
+                    receivingCall,
+                    callActive,
+                    showCallEnding,
+                    caller,
+                    callStatus
+                  });
+                }
+                return shouldShowAnswer;
+              })() && (
                 <>
                   <button 
                     onClick={answerCall} 
