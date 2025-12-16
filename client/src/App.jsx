@@ -792,6 +792,12 @@ function ChatDashboard({ token, myId, myUsername }) {
                 console.warn('⚠️ Received message event but message data is missing. Full event:', data);
               }
             } else if (data.type === 'call_user') {
+              // Ignore call_user events if call is already active (already answered)
+              if (callActive) {
+                console.log('📞 RECEIVER: Ignoring call_user event - call already active');
+                return;
+              }
+              
               const callerId = data.from;
               // Store caller ID as target for later use when ending call
               callTargetRef.current = callerId;
@@ -1005,6 +1011,12 @@ function ChatDashboard({ token, myId, myUsername }) {
         
         signals.forEach(signal => {
           if (signal.type === 'call_user') {
+            // Ignore call_user events if call is already active (already answered)
+            if (callActive) {
+              console.log('📞 RECEIVER: Ignoring call_user event (poll) - call already active');
+              return;
+            }
+            
             const callerId = signal.data.from;
             // Store caller ID as target for later use when ending call
             callTargetRef.current = callerId;
