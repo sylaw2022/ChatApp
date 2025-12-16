@@ -848,8 +848,15 @@ app.post('/api/message', async (req, res) => {
             
             // Send with message as the data directly
             console.log(`📤 Attempting to send to RECIPIENT ${recipientIdInt} (type: ${typeof recipientIdInt})...`);
+            console.log(`📤 Current active SSE connections:`, Object.keys(clients));
+            console.log(`📤 Connection details:`, Object.keys(clients).map(k => `${k}(${typeof k})`));
             const recipientSent = sendEvent(recipientIdInt, 'receive_message', msg);
             console.log(`📤 Recipient send result: ${recipientSent ? '✅ SUCCESS' : '❌ FAILED'}`);
+            if (!recipientSent) {
+                console.error(`📤❌ CRITICAL: Failed to send message to recipient ${recipientIdInt}`);
+                console.error(`📤   This means the recipient's SSE connection is not active or not found`);
+                console.error(`📤   The recipient will need to rely on polling or refresh their connection`);
+            }
             
             // Also send to sender so they see their own message
             console.log(`📤 Attempting to send to SENDER ${senderIdInt} (type: ${typeof senderIdInt})...`);
