@@ -833,10 +833,24 @@ function ChatDashboard({ token, myId, myUsername }) {
               // If we get here, we should process the call
               console.log('📞 RECEIVER: ✅ Will process call_user event - no active call detected');
               
-              console.log('📞 RECEIVER: Processing incoming call_user event');
+              const callerId = data.from;
+              // Create unique signal ID from caller ID and signal fingerprint
+              const sdpFingerprint = data.signal?.sdp ? 
+                data.signal.sdp.substring(0, 50).replace(/\s/g, '') : 
+                `${data.signal?.type || 'offer'}_${Date.now()}`;
+              const signalId = `call_user_${callerId}_${sdpFingerprint}`;
+              
+              // Check if we've already processed this exact signal
+              if (processedCallSignalsRef.current.has(signalId)) {
+                console.log('📞 RECEIVER: Ignoring duplicate call_user signal:', signalId);
+                return;
+              }
+              
+              // Mark as processed
+              processedCallSignalsRef.current.add(signalId);
+              console.log('📞 RECEIVER: Processing incoming call_user event (new signal)');
               console.log('📞 RECEIVER: Full call_user data:', JSON.stringify(data, null, 2));
               
-              const callerId = data.from;
               const callerName = data.name || data.signal?.name || 'Someone';
               
               // Store caller ID as target for later use when ending call
