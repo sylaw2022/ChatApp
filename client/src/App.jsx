@@ -1004,6 +1004,7 @@ function ChatDashboard({ token, myId, myUsername }) {
         clearInterval(callPollIntervalRef.current);
       }
     };
+    */
   }, [token]);
 
   // Poll for messages when SSE is not available
@@ -1119,6 +1120,10 @@ function ChatDashboard({ token, myId, myUsername }) {
             console.log('📞 Poll completed (no signals)');
           }
         }
+      } catch (err) {
+        console.error('❌ Error polling calls:', err);
+        console.error('   Error details:', err.response?.data || err.message);
+        // Don't stop polling on error - continue trying
         
         signals.forEach(signal => {
           if (signal.type === 'call_user') {
