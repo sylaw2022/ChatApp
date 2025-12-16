@@ -1684,7 +1684,9 @@ function ChatDashboard({ token, myId, myUsername }) {
     setIsVideoCall(videoCall);
     setCallActive(true);
     setReceivingCall(false);
+    // Set status immediately when answering
     setCallStatus('Call in progress');
+    console.log('📞 RECEIVER: Answering call, setting status to "Call in progress"');
 
     navigator.mediaDevices.getUserMedia({ video: videoCall, audio: true }).then((stream) => {
       setLocalStream(stream);
@@ -1725,7 +1727,8 @@ function ChatDashboard({ token, myId, myUsername }) {
         } else if (!videoCall && userVideo.current) {
           userVideo.current.srcObject = event.streams[0];
         }
-        // Update status when media is received
+        // Update status when media is received - ensure it stays "Call in progress"
+        console.log('📞 RECEIVER: Media track received, ensuring status is "Call in progress"');
         setCallStatus('Call in progress');
       };
       
@@ -1740,7 +1743,14 @@ function ChatDashboard({ token, myId, myUsername }) {
         }
         
         if (peer.connectionState === 'connected') {
+          console.log('📞 RECEIVER: Connection established, setting status to "Call in progress"');
           setCallStatus('Call in progress');
+        } else if (peer.connectionState === 'connecting') {
+          // Keep status as "Call in progress" while connecting (don't change it)
+          console.log('📞 RECEIVER: Connection in progress, maintaining "Call in progress" status');
+          if (callStatus !== 'Call in progress') {
+            setCallStatus('Call in progress');
+          }
         } else if (peer.connectionState === 'disconnected') {
           console.warn('⚠️ Peer connection disconnected');
           // Only show "Connection lost" if call is still active and NOT intentionally ended
@@ -1806,8 +1816,10 @@ function ChatDashboard({ token, myId, myUsername }) {
           }
         } else if (peer.iceConnectionState === 'checking') {
           console.log('📞 ICE connection checking (answer)...');
+          // Keep status as "Call in progress" while checking (don't change it to "Connecting...")
           if (!callEndedIntentionallyRef.current && !showCallEnding) {
-            setCallStatus('Connecting...');
+            // Don't change status - keep it as "Call in progress" since call was already answered
+            console.log('📞 RECEIVER: ICE checking, maintaining "Call in progress" status');
           }
         }
       };
