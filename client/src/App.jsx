@@ -793,8 +793,13 @@ function ChatDashboard({ token, myId, myUsername }) {
               }
             } else if (data.type === 'call_user') {
               // Ignore call_user events if call is already active (already answered)
-              if (callActive) {
-                console.log('📞 RECEIVER: Ignoring call_user event - call already active');
+              // Check both state and ref to handle race conditions
+              if (callActive || callActiveRef.current || !receivingCall) {
+                console.log('📞 RECEIVER: Ignoring call_user event - call already active', {
+                  callActive,
+                  callActiveRef: callActiveRef.current,
+                  receivingCall
+                });
                 return;
               }
               
@@ -1012,8 +1017,13 @@ function ChatDashboard({ token, myId, myUsername }) {
         signals.forEach(signal => {
           if (signal.type === 'call_user') {
             // Ignore call_user events if call is already active (already answered)
-            if (callActive) {
-              console.log('📞 RECEIVER: Ignoring call_user event (poll) - call already active');
+            // Check both state and ref to handle race conditions
+            if (callActive || callActiveRef.current || !receivingCall) {
+              console.log('📞 RECEIVER: Ignoring call_user event (poll) - call already active', {
+                callActive,
+                callActiveRef: callActiveRef.current,
+                receivingCall
+              });
               return;
             }
             
@@ -1694,11 +1704,15 @@ function ChatDashboard({ token, myId, myUsername }) {
     // Determine if this is a video call from the caller signal
     const videoCall = callerSignal?.isVideo || false;
     setIsVideoCall(videoCall);
+    // Set ref immediately to prevent race conditions with event handlers
+    callActiveRef.current = true;
+    receivingCallRef.current = false;
     setCallActive(true);
     setReceivingCall(false);
     // Set status immediately when answering
     setCallStatus('Call in progress');
     console.log('📞 RECEIVER: Answering call, setting status to "Call in progress"');
+    console.log('📞 RECEIVER: callActiveRef.current set to true to prevent event override');
 
     navigator.mediaDevices.getUserMedia({ video: videoCall, audio: true }).then((stream) => {
       setLocalStream(stream);
