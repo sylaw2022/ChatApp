@@ -444,6 +444,7 @@ function ChatDashboard({ token, myId, myUsername }) {
   const callActiveRef = useRef(false);
   const receivingCallRef = useRef(false);
   const processedCallSignalsRef = useRef(new Set()); // Track processed call signals to prevent duplicates
+  const processedCallSignalsRef = useRef(new Set()); // Track processed call signals to prevent duplicates
 
   // WebRTC ICE Servers configuration
   // STUN servers help discover public IP, TURN servers relay traffic when direct connection fails
@@ -583,6 +584,7 @@ function ChatDashboard({ token, myId, myUsername }) {
         setShowCallEnding(false);
         callEndedIntentionallyRef.current = false; // Reset flag
         callTargetRef.current = null; // Clear stored target
+        processedCallSignalsRef.current.clear(); // Clear processed signals
         console.log('📞 Refs reset - ready for new calls');
       }, 3000); // Show message for 3 seconds
     } else {
