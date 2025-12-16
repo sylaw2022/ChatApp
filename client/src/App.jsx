@@ -25,6 +25,26 @@ function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
   const [view, setView] = useState('chat'); // 'chat' or 'admin'
+  const [isMobile, setIsMobile] = useState(() => {
+    // Safe check for window.innerWidth (might not be available during SSR)
+    if (typeof window !== 'undefined') {
+      return window.innerWidth <= 768;
+    }
+    return false;
+  });
+
+  // Handle mobile screen size detection
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Initial check
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     // If we have a token but no user, try to get from localStorage or parse token
@@ -82,9 +102,28 @@ function App() {
   }
   
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'Arial, sans-serif' }}>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100vh', 
+      width: '100%',
+      fontFamily: 'Arial, sans-serif',
+      overflow: 'hidden',
+      position: 'relative'
+    }}>
       {/* Header */}
-      <div style={{ background: '#333', color: '#fff', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+      <div style={{ 
+        background: '#333', 
+        color: '#fff', 
+        padding: '10px 20px', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        flexWrap: 'wrap', 
+        gap: '10px',
+        flexShrink: 0,
+        zIndex: 10
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: '1 1 auto', minWidth: 0 }}>
           {/* Avatar Icon - Clickable to open profile */}
           <div 
