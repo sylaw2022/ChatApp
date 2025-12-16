@@ -444,7 +444,6 @@ function ChatDashboard({ token, myId, myUsername }) {
   const callActiveRef = useRef(false);
   const receivingCallRef = useRef(false);
   const processedCallSignalsRef = useRef(new Set()); // Track processed call signals to prevent duplicates
-  const processedCallSignalsRef = useRef(new Set()); // Track processed call signals to prevent duplicates
 
   // WebRTC ICE Servers configuration
   // STUN servers help discover public IP, TURN servers relay traffic when direct connection fails
