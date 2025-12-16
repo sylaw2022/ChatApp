@@ -923,23 +923,37 @@ function ChatDashboard({ token, myId, myUsername }) {
     const sseAvailable = eventSourceRef.current && 
                          eventSourceRef.current.readyState === EventSource.OPEN;
     
+    console.log('📞 Call polling check:', {
+      isVercel,
+      FORCE_POLLING_MODE,
+      sseAvailable,
+      sseState: eventSourceRef.current?.readyState,
+      willPoll: !sseAvailable || isVercel || FORCE_POLLING_MODE
+    });
+    
     // Only poll if SSE is not available (Vercel or forced polling mode)
     if (sseAvailable && !isVercel && !FORCE_POLLING_MODE) {
       console.log('📞 SSE available, skipping call polling');
       return;
     }
 
-    console.log('📞 Starting call polling (SSE not available)');
+    console.log('📞 Starting call polling (SSE not available or on Vercel)');
 
     const pollCalls = async () => {
       try {
+        console.log('📞 Polling for call signals...');
         const response = await axios.get(`${API_URL}/api/calls/poll`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
         const signals = response.data;
         if (signals && signals.length > 0) {
-          console.log(`📞 Polled ${signals.length} call signal(s)`);
+          console.log(`📞 ✅ Polled ${signals.length} call signal(s):`, signals.map(s => s.type));
+        } else {
+          // Log occasionally to confirm polling is running (every 10th poll)
+          if (Math.random() < 0.1) {
+            console.log('📞 Poll completed (no signals)');
+          }
         }
         
         signals.forEach(signal => {

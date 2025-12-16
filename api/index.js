@@ -330,16 +330,51 @@ let callSignals = {};
 const addCallSignal = (userId, signal) => {
     const uid = String(userId);
     if (!callSignals[uid]) callSignals[uid] = [];
-    callSignals[uid].push({ ...signal, timestamp: Date.now() });
+    const signalWithTimestamp = { ...signal, timestamp: Date.now() };
+    callSignals[uid].push(signalWithTimestamp);
     // Keep only last 50 signals per user
     if (callSignals[uid].length > 50) callSignals[uid] = callSignals[uid].slice(-50);
+    console.log(`📞 Stored call signal for user ${uid}:`, {
+        type: signal.type,
+        timestamp: signalWithTimestamp.timestamp,
+        totalSignals: callSignals[uid].length
+    });
 };
 
 // Helper to get and clear call signals for a user
+// On Vercel, we keep signals for 60 seconds to account for serverless function cold starts
+// Signals are NOT cleared immediately - they're kept for multiple polls to handle different function instances
 const getCallSignals = (userId) => {
     const uid = String(userId);
-    const signals = callSignals[uid] || [];
-    callSignals[uid] = []; // Clear after reading
+    const now = Date.now();
+    const SIGNAL_TTL = 60000; // 60 seconds - signals expire after this time (longer for Vercel)
+    
+    if (!callSignals[uid]) {
+        callSignals[uid] = [];
+        return [];
+    }
+    
+    // Filter out expired signals
+    const beforeFilter = callSignals[uid].length;
+    callSignals[uid] = callSignals[uid].filter(s => (now - s.timestamp) < SIGNAL_TTL);
+    const afterFilter = callSignals[uid].length;
+    
+    // Return all non-expired signals (don't clear immediately - allow multiple polls)
+    const signals = [...callSignals[uid]];
+    
+    // Only clear signals that are older than 15 seconds (give receiver multiple chances to poll)
+    const CLEAR_AGE = 15000; // 15 seconds
+    callSignals[uid] = callSignals[uid].filter(s => (now - s.timestamp) < CLEAR_AGE);
+    
+    console.log(`📞 Retrieved call signals for user ${uid}:`, {
+        beforeFilter,
+        afterFilter,
+        returned: signals.length,
+        remaining: callSignals[uid].length,
+        signalTypes: signals.map(s => s.type),
+        ages: signals.map(s => `${Math.round((now - s.timestamp) / 1000)}s`)
+    });
+    
     return signals;
 };
 
@@ -849,7 +884,7 @@ app.post('/api/calls/initiate', async (req, res) => {
             name: fromUsername || 'Someone'
         });
         
-        // Also store for polling
+        // Also store for polling (critical for Vercel where SSE doesn't work)
         addCallSignal(targetId, {
             type: 'call_user',
             data: {
@@ -858,6 +893,9 @@ app.post('/api/calls/initiate', async (req, res) => {
                 name: fromUsername || 'Someone'
             }
         });
+        
+        console.log(`📞 Call initiated: caller ${callerIdInt} → target ${targetId} (video: ${isVideo})`);
+        console.log(`📞 Signal stored for polling. Target user should poll /api/calls/poll to receive it.`);
         
         res.json({ success: true });
     } catch (e) {
@@ -1003,8 +1041,12 @@ app.get('/api/calls/poll', async (req, res) => {
         const userId = decoded.id;
         const userIdInt = typeof userId === 'string' ? parseInt(userId) : userId;
         
-        // Get and clear pending signals
+        // Get pending signals (with TTL handling)
         const signals = getCallSignals(userIdInt);
+        
+        if (signals.length > 0) {
+            console.log(`📞 Poll response for user ${userIdInt}: returning ${signals.length} signal(s)`);
+        }
         
         res.json(signals);
     } catch (e) {
