@@ -372,7 +372,13 @@ function ChatDashboard({ token, myId, myUsername }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false); // For mobile sidebar toggle
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [isMobile, setIsMobile] = useState(() => {
+    // Safe check for window.innerWidth (might not be available during SSR)
+    if (typeof window !== 'undefined') {
+      return window.innerWidth <= 768;
+    }
+    return false;
+  });
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [activeTab, setActiveTab] = useState('friends'); // 'friends', 'communities', 'all'
@@ -1917,11 +1923,12 @@ function ChatDashboard({ token, myId, myUsername }) {
       <div style={{ 
         width: isMobile ? (sidebarOpen ? '100%' : '0') : '260px',
         maxWidth: isMobile ? '100%' : '260px',
+        minWidth: isMobile && !sidebarOpen ? '0' : (isMobile ? '0' : '260px'),
         borderRight: isMobile && !sidebarOpen ? 'none' : '1px solid #ddd',
         background: '#f8f9fa',
-        display: 'flex',
+        display: isMobile && !sidebarOpen ? 'none' : 'flex',
         flexDirection: 'column',
-        position: isMobile ? 'absolute' : 'relative',
+        position: isMobile ? 'fixed' : 'relative',
         left: isMobile && !sidebarOpen ? '-100%' : '0',
         top: 0,
         bottom: 0,
@@ -2119,18 +2126,23 @@ function ChatDashboard({ token, myId, myUsername }) {
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
           style={{
-            position: 'absolute',
-            top: '10px',
+            position: 'fixed',
+            top: '70px',
             left: '10px',
             zIndex: 1003,
             background: '#007bff',
             color: 'white',
             border: 'none',
             borderRadius: '5px',
-            padding: '10px 15px',
+            padding: '12px 16px',
             cursor: 'pointer',
-            fontSize: '16px',
-            boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+            fontSize: '18px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+            minWidth: '44px',
+            minHeight: '44px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
         >
           {sidebarOpen ? '✕' : '☰'}
@@ -2154,7 +2166,16 @@ function ChatDashboard({ token, myId, myUsername }) {
       )}
 
       {/* Chat Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'white', width: isMobile && sidebarOpen ? '0' : '100%' }}>
+      <div style={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        background: 'white', 
+        width: isMobile && sidebarOpen ? '0' : '100%',
+        minWidth: isMobile && sidebarOpen ? '0' : '0',
+        overflow: isMobile && sidebarOpen ? 'hidden' : 'visible',
+        position: 'relative'
+      }}>
         
         {/* Call Banner */}
         {(callActive || receivingCall || showCallEnding) && (
@@ -2495,9 +2516,25 @@ function ChatDashboard({ token, myId, myUsername }) {
             </div>
           </>
         ) : (
-          <div style={{flex:1, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', color:'#888', background:'#f0f2f5'}}>
-             <div style={{ fontSize: '4rem', opacity: 0.2 }}>💬</div>
-             <h3>Select a conversation to start chatting</h3>
+          <div style={{
+            flex:1, 
+            display:'flex', 
+            flexDirection:'column', 
+            justifyContent:'center', 
+            alignItems:'center', 
+            color:'#888', 
+            background:'#f0f2f5',
+            padding: '20px',
+            textAlign: 'center',
+            minHeight: '200px'
+          }}>
+             <div style={{ fontSize: isMobile ? '3rem' : '4rem', opacity: 0.2, marginBottom: '20px' }}>💬</div>
+             <h3 style={{ margin: '10px 0', fontSize: isMobile ? '1.2rem' : '1.5rem' }}>Select a conversation to start chatting</h3>
+             {isMobile && (
+               <p style={{ margin: '10px 0', fontSize: '0.9rem', color: '#666' }}>
+                 Tap the ☰ button to see your contacts
+               </p>
+             )}
           </div>
         )}
       </div>
