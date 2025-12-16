@@ -1105,7 +1105,11 @@ function ChatDashboard({ token, myId, myUsername }) {
             console.log('📞 RECEIVER: ✅ Will process call_user event (poll) - no active call detected');
             
             const callerId = signal.data.from;
-            const signalId = `call_user_${callerId}_${signal.data.signal?.type || 'offer'}_${signal.data.signal?.sdp?.substring(0, 20) || ''}`;
+            // Create unique signal ID from caller ID and signal fingerprint
+            const sdpFingerprint = signal.data.signal?.sdp ? 
+              signal.data.signal.sdp.substring(0, 50).replace(/\s/g, '') : 
+              `${signal.data.signal?.type || 'offer'}_${Date.now()}`;
+            const signalId = `call_user_${callerId}_${sdpFingerprint}`;
             
             // Check if we've already processed this exact signal
             if (processedCallSignalsRef.current.has(signalId)) {
