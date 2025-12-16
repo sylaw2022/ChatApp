@@ -1494,17 +1494,17 @@ function ChatDashboard({ token, myId, myUsername }) {
         const userId = selectedUser._id || selectedUser.id;
         
         // Debug all messages for this conversation
-        console.log('🔍 Filtering message:', {
-          msgSenderId,
-          msgRecipientId,
-          myId,
-          userId,
-          sender: msg.sender,
-          recipient: msg.recipient,
-          sender_id: msg.sender_id,
-          recipient_id: msg.recipient_id,
-          content: msg.content?.substring(0, 30)
-        });
+        // console.log('🔍 Filtering message:', {
+        //   msgSenderId,
+        //   msgRecipientId,
+        //   myId,
+        //   userId,
+        //   sender: msg.sender,
+        //   recipient: msg.recipient,
+        //   sender_id: msg.sender_id,
+        //   recipient_id: msg.recipient_id,
+        //   content: msg.content?.substring(0, 30)
+        // });
         
         // Normalize all IDs to numbers for comparison (handle both string and number IDs)
         const normalizeId = (id) => {
